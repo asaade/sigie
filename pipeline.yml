@@ -1,0 +1,39 @@
+# pipeline.yml
+version: 2
+stages:
+  - name: generate
+    prompt: agent_dominio.md
+
+  - name: validate_hard
+    # Si esta etapa reporta errores con severity="error", el ítem se marca como fallido y no avanza.
+    # No hay 'on_fail' para refinamiento porque los errores aquí son estructurales y graves.
+    # Si un ítem falla aquí, su procesamiento se detiene, y se registra el error.
+
+  - name: validate_logic
+    prompt: agent_razonamiento.md
+    on_fail:
+      goto: refine_item_logic
+      max_attempts: 2
+      final_status_on_exhaustion: "failed_logic_validation_after_retries"
+
+  - name: refine_item_logic
+    prompt: agente_refinador_logico.md
+
+  - name: validate_policy
+    prompt: agent_politicas.md
+    on_fail:
+      goto: refine_item_policy
+      max_attempts: 2
+      final_status_on_exhaustion: "failed_policy_validation_after_retries"
+
+  - name: refine_item_policy
+    prompt: agente_refinador_politicas.md
+
+  - name: validate_soft
+    # Las validaciones suaves solo añaden warnings y no detienen el flujo crítico.
+    # Por lo tanto, no necesitan 'on_fail' con goto para refinamiento automático.
+
+  - name: finalize_item
+    prompt: agent_final.md
+
+  - name: persist
