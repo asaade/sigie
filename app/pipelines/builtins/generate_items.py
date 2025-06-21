@@ -1,18 +1,24 @@
 # app/pipelines/builtins/generate_items.py
 
 from __future__ import annotations
-import json
 import logging
+import json # Re-importado: es necesario para json.dumps
 from typing import List, Dict, Any
+from uuid import uuid4 # Necesario para inicializar item_id
 
 from ..registry import register
-from ._helpers import add_tokens
+# Eliminada la importación directa de _helpers para add_tokens, ahora a través de llm_utils
 from app.schemas.models import Item
-from app.llm import generate_response, LLMResponse
-from app.prompts import load_prompt
-from app.schemas.item_schemas import ItemPayloadSchema, UserGenerateParams, AuditEntrySchema, ReportEntrySchema
-from pydantic import ValidationError
-from ..utils.parsers import extract_json_block
+# Eliminadas generate_response, LLMResponse, load_prompt - encapsulados en llm_utils
+from app.prompts import load_prompt # Mantenemos para la verificación inicial de prompt_name
+# Eliminada AuditEntrySchema: ahora encapsulada en add_audit_entry
+from app.schemas.item_schemas import ItemPayloadSchema, UserGenerateParams, ReportEntrySchema # ValidationError se usa dentro de llm_utils
+# Eliminado extract_json_block - encapsulado en llm_utils
+
+# Importar las nuevas utilidades
+from ..utils.llm_utils import call_llm_and_parse_json_result
+from ..utils.stage_helpers import skip_if_terminal_error, add_audit_entry
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,157 +27,162 @@ async def generate_stage(items: List[Item], ctx: Dict[str, Any]) -> List[Item]:
     """
     Genera el payload de los ítems en un solo lote utilizando un LLM.
     Asigna los resultados a los objetos Item existentes en la lista de entrada.
+    Refactorizado para usar llm_utils y stage_helpers.
     """
-    # Se asume que 'items' es una lista de objetos Item pre-inicializados,
-    # posiblemente con solo el temp_id y el payload vacío o parcial,
-    # y que 'user_params' contiene los parámetros de generación para el lote completo.
+    stage_name = "generate"
 
-    params = ctx.get("params", {}).get("generate", {})
     user_params: UserGenerateParams = UserGenerateParams.model_validate(ctx.get("user_params", {}))
 
-    prompt_name = params.get("prompt", "agent_dominio.md")
+    params = ctx.get("params", {}).get(stage_name, {})
+    prompt_name = params.get("prompt", "01_agent_dominio.md") # Se mantiene un default, pero debería venir de pipeline.yml
 
     try:
-        prompt_tpl = load_prompt(prompt_name)
+        # Verificación inicial de prompt, aunque call_llm_and_parse_json_result también lo hace
+        _ = load_prompt(prompt_name)
     except FileNotFoundError as e:
         for item in items:
             item.status = "fatal_error"
             item.errors.append(
                 ReportEntrySchema(
                     code="PROMPT_NOT_FOUND",
-                    message=f"Prompt '{prompt_name}' not found: {e}",
+                    message=f"Prompt '{prompt_name}' not found for generation stage: {e}",
+                    field="prompt_name",
                     severity="error"
                 )
+            )
+            add_audit_entry(
+                item=item,
+                stage_name=stage_name,
+                summary=f"Error fatal: El archivo de prompt '{prompt_name}' no fue encontrado."
             )
         logger.error(f"Failed to load prompt '{prompt_name}': {e}")
         return items
 
-    total_tokens_used_in_stage = 0
-    stage_name = "generate" # Nombre de la etapa para auditoría
+    # Preparar el input para el LLM.
+    llm_input_payload = user_params.model_dump()
+    llm_input_payload["cantidad"] = len(items) # Usar 'cantidad' como lo espera el prompt
 
-    # Preparamos el input para la ÚNICA llamada al LLM para este lote
-    # Aseguramos que cada ítem en el lote tenga un item_id (UUID) para que el LLM lo use si es necesario
-    # Aunque el prompt actual del agente de dominio no usa `item_id` en la entrada esperada,
-    # es buena práctica incluirlo si el output lo requiere o si en el futuro se necesita mapeo.
-    items_for_llm_input = []
-    for item in items:
-        # Aquí puedes construir un "seed" o "request" por ítem si el LLM necesita especificidad
-        # Para el agente de dominio actual, los user_params son globales.
-        # El item_id es crucial para que el LLM lo incluya en su respuesta y mapear.
-        items_for_llm_input.append({"item_id": str(item.temp_id)}) # Usamos temp_id como item_id inicial
-
-    user_input_for_llm = {
-        "tipo_generacion": user_params.tipo_generacion.value if user_params.tipo_generacion else "item",
-        "cantidad": len(items), # Esto es crucial para el prompt
-        "idioma_item": user_params.idioma_item,
-        "area": user_params.area,
-        "asignatura": user_params.asignatura,
-        "tema": user_params.tema,
-        "nivel_destinatario": user_params.nivel_destinatario,
-        "nivel_cognitivo": user_params.nivel_cognitivo,
-        "dificultad_prevista": user_params.dificultad_prevista,
-        "tipo_reactivo": user_params.tipo_reactivo.value if user_params.tipo_reactivo else None,
-        "fragmento_contexto": user_params.fragmento_contexto,
-        "recurso_visual": user_params.recurso_visual.model_dump() if user_params.recurso_visual else None,
-        "estimulo_compartido": user_params.estimulo_compartido,
-        # Si 'especificaciones_por_item' es un campo de user_params y el prompt lo usa:
-        "especificaciones_por_item": [spec.model_dump() for spec in user_params.especificaciones_por_item] if user_params.especificaciones_por_item else None,
-    }
-
-    messages = [
-        {"role": "system", "content": prompt_tpl.format(n_items=len(items))}, # Pasar n_items al prompt system
-        {"role": "user", "content": json.dumps(user_input_for_llm, ensure_ascii=False)},
-    ]
+    user_input_content_json = json.dumps(llm_input_payload, ensure_ascii=False, indent=2)
 
     logger.info(f"Generating {len(items)} items with prompt '{prompt_name}' in a single batch.")
 
-    # ÚNICA Llamada al LLM
-    resp: LLMResponse = await generate_response(messages)
+    # La etapa de generación no salta ítems en el bucle principal porque todos los ítems deben
+    # ser generados o marcados con un error. La lógica de skip se aplicará en etapas posteriores.
+    # Los ítems que vienen aquí están en estado 'pending' o 'fatal_error' por prompt_name no encontrado.
 
-    total_tokens_used_in_stage = resp.usage.get("total", 0)
-    add_tokens(ctx, total_tokens_used_in_stage)
+    # Llamada al LLM y parseo usando la utilidad genérica
+    # expected_schema es List[ItemPayloadSchema] porque el LLM devuelve un array de ítems
+    generated_payloads_list_raw, llm_errors_from_call_parse = await call_llm_and_parse_json_result(
+        prompt_name=prompt_name,
+        user_input_content=user_input_content_json,
+        stage_name=stage_name,
+        # Pasamos un item para acumular tokens y auditorías.
+        # Si la llamada falla a nivel de lote, los errores se propagan a todos los ítems.
+        item=items[0] if items else Item(payload=ItemPayloadSchema(item_id=uuid4(), metadata=user_params.metadata)),
+        ctx=ctx,
+        expected_schema=List[ItemPayloadSchema] # Espera un array de payloads
+    )
 
-    # Procesar la respuesta que debe ser un ARRAY de JSONs de ItemPayloadSchema
-    clean_json_str = extract_json_block(resp.text)
-
-    generated_payloads: List[ItemPayloadSchema] = []
-    try:
-        raw_llm_response = json.loads(clean_json_str)
-
-        # El LLM puede devolver directamente el array, o un objeto con una clave "items"
-        if isinstance(raw_llm_response, dict) and "items" in raw_llm_response:
-            payloads_data = raw_llm_response["items"]
-        elif isinstance(raw_llm_response, list):
-            payloads_data = raw_llm_response
-        else:
-            raise ValueError("LLM response is not a list or an object containing an 'items' key.")
-
-        generated_payloads = [ItemPayloadSchema.model_validate(p) for p in payloads_data]
-
-        if len(generated_payloads) != len(items):
-            raise ValueError(f"Expected {len(items)} items but LLM generated {len(generated_payloads)}. Response: {clean_json_str[:500]}...")
-
-        # Mapear los payloads generados a los objetos Item originales
-        # Asumimos que el LLM mantiene el item_id (temp_id) en el payload generado
-        payloads_by_id = {payload.item_id: payload for payload in generated_payloads}
-
-        for item in items:
-            generated_payload = payloads_by_id.get(item.temp_id)
-            if generated_payload:
-                item.payload = generated_payload
-                item.status = "generated" # Nuevo estado para indicar generación exitosa
-                item.prompt_v = prompt_name
-                # Distribuir los tokens equitativamente o dejarlos como total para la etapa
-                # Aquí lo distribuimos por ítem, pero ctx['usage_tokens_total'] tendrá el total.
-                item.token_usage = total_tokens_used_in_stage // len(items)
-
-                # ¡Añadir entrada de auditoría!
-                item.audits.append(
-                    AuditEntrySchema(
-                        stage=stage_name,
-                        summary=f"Ítem generado exitosamente por el Agente de Dominio (prompt: {prompt_name})."
-                    )
+    # Manejo de errores de la utilidad (fallo en llamada LLM o parseo inicial de la lista)
+    if llm_errors_from_call_parse:
+        for item in items: # Propaga el error a todos los ítems del lote
+            # Solo si el ítem no ha sido marcado ya por un error fatal más temprano (ej. prompt not found)
+            if item.status not in ["fatal_error"]:
+                item.status = "generation_failed"
+                item.errors.extend(llm_errors_from_call_parse)
+                add_audit_entry(
+                    item=item,
+                    stage_name=stage_name,
+                    summary=f"Error fatal en la generación/parseo del lote por LLM. Detalles: {llm_errors_from_call_parse[0].message[:200]}"
                 )
-            else:
+        return items
+
+    # Si no se devolvió una lista de payloads válidos
+    if not isinstance(generated_payloads_list_raw, list):
+        error_msg = "LLM did not return a list of items as expected."
+        for item in items:
+            if item.status not in ["fatal_error"]:
                 item.status = "generation_failed"
                 item.errors.append(
                     ReportEntrySchema(
-                        code="ITEM_ID_MISMATCH",
-                        message=f"LLM did not return a payload for item_id: {item.temp_id}",
+                        code="LLM_RESPONSE_FORMAT_INVALID",
+                        message=error_msg,
+                        field="llm_response",
                         severity="error"
                     )
                 )
-                item.audits.append(
-                    AuditEntrySchema(
-                        stage=stage_name,
-                        summary=f"Fallo al mapear el payload generado por el LLM al item (missing item_id: {item.temp_id})."
-                    )
+                add_audit_entry(
+                    item=item,
+                    stage_name=stage_name,
+                    summary=f"Fallo de formato de respuesta del LLM. Detalles: {error_msg}"
                 )
+        logger.error(error_msg)
+        return items
 
 
-        logger.info(f"Successfully generated and validated {len(items)} items from LLM batch response.")
-
-    except (ValidationError, json.JSONDecodeError, ValueError) as err:
-        # Si falla el parseo, la validación de la lista, o la cantidad de ítems
-        error_msg = f"Failed to parse/validate LLM batch response or incorrect item count: {err}. Raw LLM response: {resp.text[:1000]}..."
-        logger.error(f"Batch generation failed: {error_msg}")
-
+    # Verificar que el LLM generó la cantidad esperada de ítems
+    if len(generated_payloads_list_raw) != len(items):
+        error_msg = f"LLM generated {len(generated_payloads_list_raw)} items, but {len(items)} were requested."
         for item in items:
-            if item.status == "pending": # Solo actualizar los que no han sido marcados ok
-                item.status = "generation_failed" # Considerar fatal para todos los ítems del lote si la respuesta es inválida
+            if item.status not in ["fatal_error"]:
+                item.status = "generation_failed"
                 item.errors.append(
                     ReportEntrySchema(
-                        code="BATCH_GENERATION_ERROR",
+                        code="LLM_ITEM_COUNT_MISMATCH",
                         message=error_msg,
-                        field="payload",
+                        field="llm_response",
                         severity="error"
                     )
                 )
-                item.audits.append(
-                    AuditEntrySchema(
-                        stage=stage_name,
-                        summary=f"Error fatal durante la generación en lote. Detalles: {error_msg[:200]}..."
-                    )
+                add_audit_entry(
+                    item=item,
+                    stage_name=stage_name,
+                    summary=f"Conteo de ítems generado por LLM no coincide. Detalles: {error_msg}"
                 )
+        logger.error(error_msg)
+        return items
 
+    # Mapear los payloads generados a los objetos Item originales
+    # Asumimos que el LLM mantiene el item_id (temp_id) en el payload generado
+    # Crear un mapeo por item_id para una asignación precisa
+    payloads_by_id = {payload.item_id: payload for payload in generated_payloads_list_raw}
+
+    for item in items:
+        # Aquí sí usamos skip_if_terminal_error para manejar ítems que ya fallaron en el manejo de lote
+        if skip_if_terminal_error(item, stage_name):
+            continue
+
+        generated_payload_for_item = payloads_by_id.get(item.temp_id)
+
+        if generated_payload_for_item:
+            item.payload = generated_payload_for_item
+            item.status = "generated" # Marcar el ítem como generado exitosamente
+            item.prompt_v = prompt_name # Registrar el prompt usado
+
+            # Limpiar errores de generación específicos de este ítem (si los hubo por algún motivo)
+            # Esto se refiere a errores como LLM_CALL_FAILED o LLM_PARSE_VALIDATION_ERROR si ocurrieron a nivel de ítem.
+            item.errors = [err for err in item.errors if not (err.code.startswith("LLM_") and ("GENERATION" in err.code or "PARSE" in err.code or "CALL" in err.code or "UNEXPECTED" in err.code))]
+
+            add_audit_entry(
+                item=item,
+                stage_name=stage_name,
+                summary=f"Ítem generado exitosamente por el Agente de Dominio (prompt: {prompt_name})."
+            )
+        else:
+            item.status = "generation_failed_mismatch"
+            item.errors.append(
+                ReportEntrySchema(
+                    code="ITEM_ID_MISMATCH",
+                    message=f"LLM no devolvió un payload para el item_id: {item.temp_id}",
+                    severity="error"
+                )
+            )
+            add_audit_entry(
+                item=item,
+                stage_name=stage_name,
+                summary=f"Fallo al mapear el payload generado por el LLM al ítem (missing item_id: {item.temp_id})."
+            )
+            logger.error(f"LLM did not return a payload for item_id: {item.temp_id} during generation.")
+
+    logger.info(f"Generation stage completed for {len(items)} items. Total tokens: {ctx.get('usage_tokens_total', 0)}")
     return items

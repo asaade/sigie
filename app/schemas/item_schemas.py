@@ -111,9 +111,10 @@ class ReportEntrySchema(BaseModel):
 
 class CorrectionEntrySchema(BaseModel):
     field: str = Field(..., description="Campo del ítem que fue modificado (ej. 'enunciado_pregunta', 'opciones[0].texto').")
-    reason: str = Field(..., description="Razón por la cual se realizó la corrección.")
+    error_code: str = Field(..., description="Código de error que motivó la corrección.") # Cambiado de 'reason'
     original: Optional[str] = Field(None, description="Valor original del campo antes de la corrección.")
     corrected: Optional[str] = Field(None, description="Nuevo valor del campo después de la corrección.")
+    reason: Optional[str] = Field(None, description="Descripción opcional del agente sobre la razón de la corrección.") # Nuevo campo opcional
 
     class Config:
         frozen = True

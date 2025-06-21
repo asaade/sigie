@@ -2,38 +2,78 @@
 version: 2
 stages:
   - name: generate
-    prompt: agent_dominio.md
+    prompt: 01_agent_dominio.md
+    model: gemini-1.5-pro
+    temperature: 0.7
+    max_tokens: 3000
 
   - name: validate_hard
+    # No usa LLM, no necesita estos parámetros
     # Si esta etapa reporta errores con severity="error", el ítem se marca como fallido y no avanza.
     # No hay 'on_fail' para refinamiento porque los errores aquí son estructurales y graves.
     # Si un ítem falla aquí, su procesamiento se detiene, y se registra el error.
 
   - name: validate_logic
-    prompt: agent_razonamiento.md
+    prompt: 02_agent_razonamiento.md
+    model: gemini-1.5-pro
+    temperature: 0.1
+    max_tokens: 1500
     on_fail:
       goto: refine_item_logic
       max_attempts: 2
       final_status_on_exhaustion: "failed_logic_validation_after_retries"
 
   - name: refine_item_logic
-    prompt: agente_refinador_logico.md
+    prompt: 03_agente_refinador_razonamiento.md
+    model: gemini-1.5-pro
+    temperature: 0.3
+    max_tokens: 2500
+
+  # --- Nuevas Etapas de Estilo (LLM-basadas) ---
+  - name: validate_style # Nueva etapa: Validar estilo con LLM
+    prompt: 04_agent_style_validator.md # Asumo que este prompt se creará o se definirá.
+    model: gemini-1.5-flash # Un modelo más ligero y rápido podría ser suficiente para estilo
+    temperature: 0.5 # Más flexibilidad para detectar matices de estilo
+    max_tokens: 1000
+    on_fail:
+      goto: refine_item_style # Si la validación de estilo falla, ir al refinador
+      max_attempts: 2
+      final_status_on_exhaustion: "failed_style_validation_after_retries" # Nuevo estado de fallo
+
+  - name: refine_item_style # Etapa de refinamiento de estilo con LLM
+    prompt: 04_agente_refinador_estilo.md # El prompt existente para refinamiento de estilo
+    model: gemini-1.5-pro # Un modelo más capaz para reescritura
+    temperature: 0.3
+    max_tokens: 2000
+  # --- Fin Nuevas Etapas de Estilo ---
 
   - name: validate_policy
-    prompt: agent_politicas.md
+    prompt: 05_agent_politicas.md
+    model: gemini-1.5-pro
+    temperature: 0.1
+    max_tokens: 1500
     on_fail:
       goto: refine_item_policy
       max_attempts: 2
       final_status_on_exhaustion: "failed_policy_validation_after_retries"
 
   - name: refine_item_policy
-    prompt: agente_refinador_politicas.md
+    prompt: 06_agente_refinador_politicas.md
+    model: gemini-1.5-pro
+    temperature: 0.3
+    max_tokens: 2500
 
   - name: validate_soft
-    # Las validaciones suaves solo añaden warnings y no detienen el flujo crítico.
-    # Por lo tanto, no necesitan 'on_fail' con goto para refinamiento automático.
+    # Si la etapa de estilo LLM (validate_style) ya cubre las advertencias, esta etapa local podría ser
+    # reevaluada o suprimirla si no hay validaciones "soft" adicionales no LLM.
+    # Por ahora, la dejamos, pero su rol puede necesitar ser redefinido.
+    # No usa LLM, no necesita parámetros.
 
   - name: finalize_item
-    prompt: agent_final.md
+    prompt: 07_agent_final.md
+    model: gemini-1.5-pro
+    temperature: 0.2
+    max_tokens: 2000
 
   - name: persist
+    # No usa LLM, no necesita parámetros

@@ -1,0 +1,171 @@
+# Catálogo centralizado de errores y advertencias para el sistema SIGIE
+
+ESTILO:
+  - code: E020_STEM_LENGTH
+    message: Stem excede límite de longitud.
+    fix_hint: Recortar el enunciado sin perder claridad.
+    severity: fatal
+
+  - code: E040_OPTION_LENGTH
+    message: Alguna opción excede el límite de longitud.
+    fix_hint: Acortar el texto de la opción.
+    severity: fatal
+
+  - code: E080_MATH_FORMAT
+    message: Unicode y LaTeX mezclados para el mismo símbolo.
+    fix_hint: Usar solo Unicode o solo LaTeX.
+    severity: fatal
+
+  - code: W104_OPT_LEN_VAR
+    message: Longitud de opciones varía demasiado.
+    fix_hint: Igualar la longitud aproximada de las opciones.
+    severity: warn
+
+  - code: W105_LEXICAL_CUE
+    message: Pista léxica: palabra clave del stem solo en la correcta.
+    fix_hint: Añadir esa palabra a un distractor o reformular el stem.
+    severity: warn
+
+  - code: W109_PLAUSIBILITY
+    message: Distractor demasiado absurdo.
+    fix_hint: Ajustar distractor a error conceptual plausible.
+    severity: warn
+
+  - code: W110_REPEATED_KEY
+    message: Misma letra correcta repetida más de lo recomendable.
+    fix_hint: Cambiar la letra correcta para rotar posiciones.
+    severity: warn
+
+  - code: W112_DISTRACTOR_SIMILAR
+    message: Dos o más distractores son demasiado similares entre sí.
+    fix_hint: Representar errores alternativos o reformular.
+    severity: warn
+
+FINAL:
+  - code: W111_FRAG_LEN
+    message: fragmento_contexto excede 100 palabras.
+    fix_hint: Resumir o mover a estimulo_compartido.
+    severity: warn
+
+  - code: F_INCONSISTENCIA_LOGICO_ESTILO
+    message: La justificación contradice el enunciado o contexto.
+    fix_hint: Revisar justificación o enunciado.
+    severity: fatal
+
+  - code: F_TONO_DESIGUAL
+    message: Diferencias de tono o registro entre campos.
+    fix_hint: Unificar estilo entre campos.
+    severity: warn
+
+  - code: F_NIVEL_COGNITIVO_AFECTADO
+    message: El ítem no coincide con el nivel Bloom declarado.
+    fix_hint: Ajustar nivel o reformular ítem.
+    severity: fatal
+
+  - code: F_FORMATO_NO_UNIFORME
+    message: Desbalance o estructura inconsistente.
+    fix_hint: Homogeneizar estructura de opciones.
+    severity: warn
+
+GENERAL:
+  - code: E001_SCHEMA
+    message: El JSON no cumple el esquema.
+    fix_hint: Regenerar el ítem aplicando el esquema vigente.
+    severity: fatal
+
+  - code: E010_NUM_OPTIONS
+    message: El número de opciones debe ser 3 o 4.
+    fix_hint: Ajustar a 3 o 4 objetos.
+    severity: fatal
+
+  - code: E011_DUP_ID
+    message: IDs de opciones duplicados.
+    fix_hint: Usar IDs únicos ('a'-'d').
+    severity: fatal
+
+  - code: E012_CORRECT_COUNT
+    message: Debe haber exactamente una opción correcta.
+    fix_hint: Dejar solo una opción con 'es_correcta:true'.
+    severity: fatal
+
+  - code: E013_ID_NO_MATCH
+    message: respuesta_correcta_id no coincide con la opción marcada.
+    fix_hint: Sincronizar campo con la opción correcta.
+    severity: fatal
+
+  - code: E030_COMPLET_SEGMENTS
+    message: Segmentos no coinciden con los huecos.
+    fix_hint: Alinear segmentos de opciones con los huecos del enunciado.
+    severity: fatal
+
+  - code: E050_BAD_URL
+    message: 'referencia' no es una URL válida.
+    fix_hint: Proveer URL accesible o dejar el recurso visual en null.
+    severity: fatal
+
+  - code: E060_MULTI_TESTLET
+    message: estimulo_compartido exige testlet_id y viceversa.
+    fix_hint: Sincronizar ambos campos de testlet.
+    severity: fatal
+
+  - code: E091_CORRECTA_SIMILAR_STEM
+    message: Opción correcta demasiado similar al stem.
+    fix_hint: Reformular enunciado u opción para evitar pista.
+    severity: fatal
+
+  - code: W101_STEM_NEG_LOWER
+    message: Negación en minúscula; debe ir en MAYÚSCULAS.
+    fix_hint: Reformular en positivo o poner en mayúsculas.
+    severity: warn
+
+LOGICO:
+  - code: E070_NO_CORRECT_RATIONALE
+    message: Falta la justificación de la opción correcta.
+    fix_hint: Añadir texto explicativo en 'justificacion'.
+    severity: fatal
+
+  - code: E071_CALCULO_INCORRECTO
+    message: Resultado incorrecto en la opción correcta.
+    fix_hint: Verificar procedimiento matemático.
+    severity: fatal
+
+  - code: W106_TODAS_NINGUNA
+    message: Se usó 'todas/ninguna de las anteriores'.
+    fix_hint: Sustituir por distractor específico.
+    severity: warn
+
+POLITICAS:
+  - code: E090_PROFANITY
+    message: Contenido ofensivo o prohibido.
+    fix_hint: Reescribir siguiendo políticas.
+    severity: fatal
+
+  - code: W102_ABSOL_STEM
+    message: Absoluto injustificado (ej. siempre, nunca).
+    fix_hint: Sustituir o matizar el absoluto.
+    severity: warn
+
+  - code: W103_HEDGE_STEM
+    message: Hedging innecesario (ej. quizá, algunos).
+    fix_hint: Eliminar o aportar dato exacto.
+    severity: warn
+
+  - code: W107_COLOR_ALT
+    message: alt_text menciona colores sin codificar información.
+    fix_hint: Eliminar referencias a color irrelevantes.
+    severity: warn
+
+  - code: W108_ALT_VAGUE
+    message: alt_text vago o genérico.
+    fix_hint: Describir tendencia o propósito del recurso.
+    severity: warn
+
+  - code: W120_SESGO_GENERO
+    message: Lenguaje con sesgo de género.
+    fix_hint: Usar formulaciones neutras e inclusivas.
+    severity: warn
+
+  - code: W121_CULTURAL_EXCL
+    message: Referencia cultural excluyente.
+    fix_hint: Usar ejemplos accesibles a diversidad de estudiantes.
+    severity: warn
