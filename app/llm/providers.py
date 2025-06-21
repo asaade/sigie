@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Type, Tuple
 from app.core.config import Settings
 from .utils import make_retry
 
+# Se instancia settings fuera de las clases para acceso global
+# pero get_provider ahora crea instancias de clientes, que reciben settings
 settings = Settings()
 log = logging.getLogger("app.llm")
 
@@ -17,24 +19,22 @@ class LLMResponse:
     model: str
     usage: Dict[str, int]
     extra: Dict[str, Any]
-    success: bool = True # Añadir campo success para manejar fallos de llamada
+    success: bool = True # Añadido para indicar éxito de la llamada LLM
     error_message: Optional[str] = None # Mensaje de error si success es False
 
 # ─── Plugin registry ─────────────────────────────────────────────────────────
 _PROVIDER_REGISTRY: Dict[str, Type['BaseLLMClient']] = {} # Usar Type['BaseLLMClient'] para forward reference
 
 def register_provider(name: str):
-    def decorator(cls: Type[BaseLLMClient]):
-        # Las instancias se crean al momento de get_provider, no en el registro
-        _PROVIDER_REGISTRY[name.lower()] = cls
+    def decorator(cls: Type['BaseLLMClient']):
+        _PROVIDER_REGISTRY[name.lower()] = cls # Guarda la CLASE, no la instancia
         return cls
     return decorator
 
-def get_provider(name: str) -> BaseLLMClient:
+def get_provider(name: str) -> 'BaseLLMClient': # Retorna la instancia, no la clase
     try:
-        # Crea la instancia del cliente al momento de solicitarlo
         client_cls = _PROVIDER_REGISTRY[name.lower()]
-        return client_cls(settings) # Pasa la configuración al constructor
+        return client_cls(settings) # Crea la instancia al solicitarla, pasando settings
     except KeyError:
         raise ValueError(f"Proveedor LLM no soportado: {name!r}")
 
@@ -60,7 +60,7 @@ class BaseLLMClient:
         try:
             provider_resp = await self._retry(self._call)(messages, kwargs)
             return self._parse_response(provider_resp)
-        except Exception as e:
+        except Exception as e: # Captura cualquier error durante la llamada o el parseo
             self.logger.error(f"Error durante la llamada LLM o el parseo de respuesta para {self.__class__.__name__}: {e}", exc_info=True)
             return LLMResponse(
                 text="",
@@ -85,7 +85,7 @@ from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, Authe
 class OpenAIClient(BaseLLMClient):
     @classmethod
     def retry_exceptions(cls):
-        return (RateLimitError, APIError, APITimeoutError) # Añadido APITimeoutError
+        return (RateLimitError, APIError, APITimeoutError, AuthenticationError, InvalidAPIKeyError) # Añadido APITimeoutError, AuthenticationError, InvalidAPIKeyError
 
     async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
         client = AsyncOpenAI(
@@ -130,6 +130,7 @@ class OpenRouterClient(OpenAIClient): # Heredamos de OpenAIClient por compatibil
         )
 
     async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
+        # Aquí self._async_client ya está inicializado con la base/key de OpenRouter
         params = {
             "model": kwargs.pop("model", self.settings.llm_model),
             "messages": messages,
@@ -143,13 +144,13 @@ class OpenRouterClient(OpenAIClient): # Heredamos de OpenAIClient por compatibil
 # ─── Cliente Gemini / Google GenAI ───────────────────────────────────────────
 import google.generativeai as genai
 from google.generativeai.types import GenerateContentResponse
-from google.api_core.exceptions import ResourceExhausted, InternalServerError, Aborted, ClientError # Tipos de errores para retry
+from google.api_core.exceptions import ResourceExhausted, InternalServerError, Aborted, DeadlineExceeded
 
 @register_provider("gemini")
 class GeminiClient(BaseLLMClient):
     @classmethod
     def retry_exceptions(cls):
-        return (ResourceExhausted, InternalServerError, Aborted) # Errores comunes de API de Google para reintento
+        return (ResourceExhausted, InternalServerError, Aborted, DeadlineExceeded) # Añadido DeadlineExceeded
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
@@ -159,48 +160,24 @@ class GeminiClient(BaseLLMClient):
 
     async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
         # Convertir mensajes de formato OpenAI a formato Gemini si es necesario
-        # Gemini usa "role": "user" y "role": "model"
         gemini_messages = []
         for msg in messages:
+            # Gemini usa "role": "user" y "role": "model"
             role = "user" if msg["role"] == "user" else "model" # Ajustar si hay otros roles
             gemini_messages.append({"role": role, "parts": [msg["content"]]})
 
-        # Gemini puede tener modelos con "gemini-pro" o "gemini-1.5-pro", etc.
-        # pop "model" de kwargs para asegurar que el modelo principal venga de kwargs o settings
         model_name = kwargs.pop("model", self.settings.llm_model)
 
-        # Opciones de generación
         generation_config = {
             "temperature": kwargs.pop("temperature", self.settings.llm_temperature),
-            "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
-            # Otros parámetros de generación específicos de Gemini en kwargs
+            "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens), # num_predict para max_tokens
         }
-
-        # Eliminar kwargs no reconocidos por generate_content directamente
-        # (p.ej. 'n', 'logprobs' de OpenAI)
-
-        # Llamar directamente a la API asíncrona (si el SDK lo soporta)
-        # O usar un executor para make_sync_call_async si el SDK es solo síncrono.
-        # Google GenAI SDK tiene soporte asíncrono.
-        # return await genai.GenerativeModel(model_name=model_name).generate_content_async(
-        #     contents=gemini_messages,
-        #     generation_config=generation_config,
-        #     **kwargs # Pasar kwargs adicionales
-        # )
-        # A falta de una implementación completa del SDK asíncrono de Google,
-        # simulamos la llamada con un wrapper simple
-
-        # Para compatibilidad con el entorno asíncrono, usar asyncio.to_thread
-        # si genai.GenerativeModel.generate_content es síncrono.
-        # Asumo genai.GenerativeModel(model_name).generate_content_async existe.
-        # Si no, se debe usar asyncio.to_thread(model.generate_content, ...)
 
         model = genai.GenerativeModel(model_name=model_name)
         return await model.generate_content_async(
              gemini_messages,
              generation_config=generation_config,
-             # stream=False, # Si no queremos streaming
-             timeout=self.settings.llm_request_timeout, # Usar el timeout global
+             timeout=self.settings.llm_request_timeout,
              **kwargs # Pasar cualquier kwarg restante
         )
 
@@ -208,15 +185,10 @@ class GeminiClient(BaseLLMClient):
     def _parse_response(self, res: GenerateContentResponse) -> LLMResponse: # Type hint para Gemini response
         text_content = ""
         try:
-            # Acceder a la respuesta de texto. Puede variar si la respuesta es multi-partes o tiene errores.
-            text_content = res.candidates[0].content.parts[0].text
+            text_content = res.candidates[0].content.parts[0].text # Acceder a la respuesta de texto
         except (AttributeError, IndexError):
             self.logger.warning("No se pudo extraer texto de la respuesta de Gemini.")
 
-        # Contar tokens (puede requerir una llamada separada al API o ser estimado)
-        # Gemini no siempre devuelve uso de tokens directamente en generate_content_response.
-        # Podríamos hacer un count_tokens si el modelo lo soporta.
-        # Por ahora, estimamos o dejamos en cero si no se devuelve.
         total_tokens = 0
         if res.usage_metadata:
              total_tokens = getattr(res.usage_metadata, 'total_token_count', 0)
@@ -226,7 +198,7 @@ class GeminiClient(BaseLLMClient):
         return LLMResponse(
             text=text_content,
             model=model_name,
-            usage={"total": total_tokens, "prompt": 0, "completion": 0}, # Gemini usage may be less granular
+            usage={"prompt": getattr(res.usage_metadata, 'prompt_token_count', 0), "completion": getattr(res.usage_metadata, 'candidates_token_count', 0), "total": total_tokens}, # Gemini usage may be less granular
             extra={},
             success=True
         )
@@ -248,23 +220,18 @@ class OllamaClient(BaseLLMClient):
             "temperature": kwargs.pop("temperature", self.settings.llm_temperature),
             "num_predict": kwargs.pop("max_tokens", self.settings.llm_max_tokens), # num_predict para max_tokens
         }
-        # Ollama tiene una clave 'options' para opts
         kwargs.setdefault("options", {}).update(opts) # Asegura que opts se mergea en kwargs['options']
 
-        # Añadimos los parámetros de messages y model al kwargs para la llamada a client.chat
         chat_params = {
             "model": kwargs.pop("model", self.settings.llm_model),
             "messages": messages,
         }
         chat_params.update(kwargs) # mergea el resto de kwargs
 
-        # Usa el timeout global para la llamada a Ollama
         return await client.chat(**chat_params, timeout=self.settings.llm_request_timeout)
 
 
     def _parse_response(self, res: Any) -> LLMResponse:
-        # Ollama devuelve la respuesta en res['message']['content']
-        # El uso de tokens está en res['prompt_eval_count'] y res['eval_count']
         text_content = res.get("message", {}).get("content", "")
         prompt_tokens = res.get("prompt_eval_count", 0)
         completion_tokens = res.get("eval_count", 0)

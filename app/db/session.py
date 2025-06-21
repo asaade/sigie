@@ -3,8 +3,8 @@
 Módulo de sesión de base de datos para SIGIE: crea engine y sesiones y permite iniciar la BD.
 """
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session # Añadido Session para type hinting en el comentario
-from app.core.config import get_settings # Asumimos que existe y es funcional
+from sqlalchemy.orm import sessionmaker
+from app.core.config import get_settings
 from app.db.models import Base
 
 settings = get_settings()
