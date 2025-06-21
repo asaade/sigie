@@ -1,4 +1,4 @@
-import os
+# app/llm/config.py
 from pydantic import BaseSettings, Field
 
 class Settings(BaseSettings):

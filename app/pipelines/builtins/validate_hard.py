@@ -2,7 +2,6 @@
 
 import logging
 from typing import List, Dict, Any
-# from uuid import UUID # Eliminado: no se usa directamente
 
 from ..registry import register
 from app.schemas.models import Item

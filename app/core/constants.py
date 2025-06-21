@@ -1,3 +1,4 @@
+# app/core/constants.py
 import re
 
 # Límites de longitud

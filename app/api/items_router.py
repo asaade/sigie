@@ -1,37 +1,33 @@
-# app/api/items_router.py (ACTUALIZADO)
+# app/api/items_router.py
 
 from fastapi import APIRouter, HTTPException, status
-from typing import List, Optional
+from typing import List, Optional, Dict # Eliminar 'Dict' si no se usa directamente en firmas
 from pathlib import Path
-import json
+# Eliminado import json - no se usa directamente en este archivo
 import logging
 from uuid import UUID
 
 from app.pipelines.runner import run
 from app.schemas.item_schemas import (
-    UserGenerateParams,       # Importamos directamente los parámetros del usuario
-    ItemPayloadSchema,        # Para el payload de cada ítem
-    ReportEntrySchema,        # Para errores y advertencias
-    AuditEntrySchema          # Para el historial de auditoría
+    UserGenerateParams,
+    ItemPayloadSchema,
+    ReportEntrySchema,
+    AuditEntrySchema
 )
-from app.schemas.models import Item # Solo para type hints en la respuesta del runner
-from pydantic import BaseModel, Field # Para definir el esquema de respuesta de la API
+from app.schemas.models import Item
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/items", tags=["items"])
 PIPELINE_PATH = Path(__file__).parents[2] / "pipeline.yml"
 
-# --- Esquemas de entrada y salida para la API ---
-
-# `GenerationRequest` ahora hereda de `UserGenerateParams` y añade `n_items`
 class GenerationRequest(UserGenerateParams):
     cantidad: int = Field(..., alias="n_items", gt=0, description="Número de ítems a generar")
 
     class Config:
-        populate_by_name = True # Permite usar el alias 'n_items' en la entrada JSON
+        populate_by_name = True
 
-# Esquema para la respuesta individual de cada ítem en la API
 class ItemAPIOutput(BaseModel):
     item_id: UUID = Field(..., description="ID temporal del ítem utilizado durante el pipeline")
     status: str = Field(..., description="Estado final del ítem al salir del pipeline")
@@ -40,17 +36,12 @@ class ItemAPIOutput(BaseModel):
     warnings: List[ReportEntrySchema] = Field(default_factory=list, description="Lista de advertencias para el ítem")
     audits: List[AuditEntrySchema] = Field(default_factory=list, description="Historial de auditoría del procesamiento del ítem")
     token_usage: Optional[int] = Field(None, description="Número de tokens consumidos por el ítem en las etapas LLM (distribuido)")
+    db_id: Optional[UUID] = Field(None, description="ID definitivo del ítem en la base de datos, si fue persistido.") # Añadir este campo
 
-    # Podrías añadir un campo para el DB ID si el persistencia ya lo devuelve aquí.
-    # db_id: Optional[UUID] = None
-
-# Esquema para la respuesta global de la API para la generación de ítems
 class GenerateItemsAPIResponse(BaseModel):
     success: bool = Field(..., description="Indica si la operación de pipeline fue exitosa en general")
     total_tokens_used: int = Field(..., description="Total de tokens consumidos por todas las etapas LLM en el pipeline")
     results: List[ItemAPIOutput] = Field(..., description="Resultados individuales para cada ítem procesado")
-
-# --- Rutas de la API ---
 
 @router.post(
     "/generate",
@@ -61,8 +52,6 @@ class GenerateItemsAPIResponse(BaseModel):
 async def generate_items(request: GenerationRequest):
     logger.info(f"Received generation request for {request.cantidad} items.")
 
-    # Convertir `n_items` de `GenerationRequest` a `cantidad` para `UserGenerateParams`
-    # y construir el objeto UserGenerateParams para el runner
     user_params = UserGenerateParams(
         tipo_generacion=request.tipo_generacion,
         cantidad=request.cantidad,
@@ -85,37 +74,45 @@ async def generate_items(request: GenerationRequest):
     )
 
     try:
-        # El runner ahora inicializa los ítems basados en user_params.cantidad
         final_items: List[Item]
         pipeline_ctx: Dict
         final_items, pipeline_ctx = await run(str(PIPELINE_PATH), user_params)
 
         total_tokens_used = pipeline_ctx.get("usage_tokens_total", 0)
 
-        # Construir la lista de resultados para la respuesta de la API
         results_for_api: List[ItemAPIOutput] = []
         all_successful = True
 
         for item in final_items:
-            # Si el ítem llega a un estado de fallo persistente, se marca como no exitoso.
-            # Define aquí qué estados de 'status' consideras un 'éxito' para la API
+            # Añadir 'persisted' al conjunto de estados de éxito
             if item.status in ["fatal_error",
                                "failed_hard_validation_after_retries",
                                "failed_logic_validation_after_retries",
                                "failed_policy_validation_after_retries",
                                "final_failed_validation",
-                               "generation_failed"]: # Añadir más estados de fallo si es necesario
+                               "generation_failed",
+                               "llm_generation_failed", # Añadir estados de fallo LLM específicos
+                               "generation_validation_failed",
+                               "generation_failed_mismatch",
+                               "persistence_failed_db_error", # Fallos de persistencia
+                               "persistence_failed_unexpected_error",
+                               "final_error_on_persist_stage" # Error fatal en persistencia
+                               ]:
                 all_successful = False
+
+            # Si el ítem llega a estado 'persisted', es un éxito.
+            # all_successful se define por la presencia de CUALQUIER fallo.
 
             results_for_api.append(
                 ItemAPIOutput(
                     item_id=item.temp_id,
                     status=item.status,
-                    payload=item.payload, # El payload puede estar ausente si la generación falló
+                    payload=item.payload,
                     errors=item.errors,
                     warnings=item.warnings,
                     audits=item.audits,
-                    token_usage=item.token_usage
+                    token_usage=item.token_usage,
+                    db_id=item.item_id # Asignar el db_id si existe
                 )
             )
 
@@ -131,9 +128,3 @@ async def generate_items(request: GenerationRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error durante la ejecución del pipeline: {e}"
         )
-
-# Puedes mantener otras rutas existentes si las hay, ej. /items/{item_id} para obtener un ítem por ID
-# @router.get("/{item_id}", response_model=ItemOut)
-# async def get_item(item_id: str):
-#     # Aquí iría la lógica para recuperar un ítem de la BD
-#     pass
