@@ -22,7 +22,7 @@ ESTILO:
     severity: warn
 
   - code: W105_LEXICAL_CUE
-    message: Pista léxica: palabra clave del stem solo en la correcta.
+    message: Pista léxica. palabra clave del stem solo en la correcta.
     fix_hint: Añadir esa palabra a un distractor o reformular el stem.
     severity: warn
 
@@ -41,30 +41,40 @@ ESTILO:
     fix_hint: Representar errores alternativos o reformular.
     severity: warn
 
-FINAL:
-  - code: W111_FRAG_LEN
-    message: fragmento_contexto excede 100 palabras.
-    fix_hint: Resumir o mover a estimulo_compartido.
-    severity: warn
-
-  - code: F_INCONSISTENCIA_LOGICO_ESTILO
-    message: La justificación contradice el enunciado o contexto.
-    fix_hint: Revisar justificación o enunciado.
+LOGICO:
+  - code: E070_NO_CORRECT_RATIONALE
+    message: Falta la justificación de la opción correcta.
+    fix_hint: Añadir texto explicativo en 'justificacion'.
     severity: fatal
 
-  - code: F_TONO_DESIGUAL
-    message: Diferencias de tono o registro entre campos.
-    fix_hint: Unificar estilo entre campos.
-    severity: warn
-
-  - code: F_NIVEL_COGNITIVO_AFECTADO
-    message: El ítem no coincide con el nivel Bloom declarado.
-    fix_hint: Ajustar nivel o reformular ítem.
+  - code: E071_CALCULO_INCORRECTO
+    message: Resultado incorrecto en la opción correcta.
+    fix_hint: Verificar procedimiento matemático.
     severity: fatal
 
-  - code: F_FORMATO_NO_UNIFORME
-    message: Desbalance o estructura inconsistente.
-    fix_hint: Homogeneizar estructura de opciones.
+  - code: E072_UNIDADES_INCONSISTENTES
+    message: Unidades o magnitudes no coinciden entre enunciado, opciones o justificaciones.
+    fix_hint: Asegurar consistencia de unidades.
+    severity: fatal
+
+  - code: E073_CONTRADICCION_INTERNA
+    message: Información contradictoria o inconsistencia lógica interna en el ítem.
+    fix_hint: Revisar y corregir la coherencia de datos y principios.
+    severity: fatal
+
+  - code: E_NIVEL_COGNITIVO_INAPROPIADO
+    message: El ítem no corresponde al nivel cognitivo Bloom declarado.
+    fix_hint: Ajustar el nivel declarado o reformular el ítem para que coincida.
+    severity: fatal
+
+  - code: E_DESCONOCIDO_LOGICO
+    message: Error lógico no clasificado.
+    fix_hint: Revisar manualmente la lógica del ítem.
+    severity: fatal
+
+  - code: W106_TODAS_NINGUNA
+    message: Se usó 'todas/ninguna de las anteriores'.
+    fix_hint: Sustituir por distractor específico.
     severity: warn
 
 GENERAL:
@@ -99,7 +109,7 @@ GENERAL:
     severity: fatal
 
   - code: E050_BAD_URL
-    message: 'referencia' no es una URL válida.
+    message: \'referencia\' no es una URL válida.
     fix_hint: Proveer URL accesible o dejar el recurso visual en null.
     severity: fatal
 
@@ -118,20 +128,30 @@ GENERAL:
     fix_hint: Reformular en positivo o poner en mayúsculas.
     severity: warn
 
-LOGICO:
-  - code: E070_NO_CORRECT_RATIONALE
-    message: Falta la justificación de la opción correcta.
-    fix_hint: Añadir texto explicativo en 'justificacion'.
+FINAL:
+  - code: W111_FRAG_LEN
+    message: fragmento_contexto excede 100 palabras.
+    fix_hint: Resumir o mover a estimulo_compartido.
+    severity: warn
+
+  - code: F_INCONSISTENCIA_LOGICO_ESTILO
+    message: La justificación contradice el enunciado o contexto.
+    fix_hint: Revisar justificación o enunciado.
     severity: fatal
 
-  - code: E071_CALCULO_INCORRECTO
-    message: Resultado incorrecto en la opción correcta.
-    fix_hint: Verificar procedimiento matemático.
+  - code: F_TONO_DESIGUAL
+    message: Diferencias de tono o registro entre campos.
+    fix_hint: Unificar estilo entre campos.
+    severity: warn
+
+  - code: F_NIVEL_COGNITIVO_AFECTADO
+    message: El ítem no coincide con el nivel Bloom declarado tras las correcciones.
+    fix_hint: Ajustar nivel o reformular ítem.
     severity: fatal
 
-  - code: W106_TODAS_NINGUNA
-    message: Se usó 'todas/ninguna de las anteriores'.
-    fix_hint: Sustituir por distractor específico.
+  - code: F_FORMATO_NO_UNIFORME
+    message: Desbalance o estructura inconsistente.
+    fix_hint: Homogeneizar estructura de opciones.
     severity: warn
 
 POLITICAS:

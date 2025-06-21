@@ -1,18 +1,24 @@
 # app/pipelines/builtins/refine_item_style.py
 
+from __future__ import annotations
 import logging
-import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from ..registry import register
-from app.llm import generate_response, LLMResponse
 from app.prompts import load_prompt
 from app.schemas.models import Item
-from app.schemas.item_schemas import ReportEntrySchema, AuditEntrySchema, RefinementResultSchema, CorrectionEntrySchema, ItemPayloadSchema
-from pydantic import ValidationError
+from app.schemas.item_schemas import ReportEntrySchema, RefinementResultSchema
 
-from ..utils.llm_utils import call_llm_and_parse_json_result # Importar la utilidad
-from ..utils.stage_helpers import skip_if_terminal_error, add_audit_entry
+from ..utils.llm_utils import call_llm_and_parse_json_result
+from ..utils.stage_helpers import ( # Importar las nuevas funciones helper
+    skip_if_terminal_error,
+    handle_prompt_not_found_error,
+    handle_missing_payload,
+    clean_item_llm_errors,
+    clean_specific_errors,
+    update_item_status_and_audit,
+    handle_llm_call_and_parse_errors
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +26,7 @@ logger = logging.getLogger(__name__)
 async def refine_item_style_stage(items: List[Item], ctx: Dict[str, Any]) -> List[Item]:
     """
     Etapa de refinamiento de estilo de ítems mediante un LLM (Agente Refinador de Estilo).
-    Realiza una revisión y corrección integral del estilo, concisión y tono del ítem.
+    Refactorizado para usar llm_utils y stage_helpers.
     """
     stage_name = "refine_item_style"
 
@@ -28,79 +34,54 @@ async def refine_item_style_stage(items: List[Item], ctx: Dict[str, Any]) -> Lis
     prompt_name = params.get("prompt", "04_agente_refinador_estilo.md")
 
     try:
-        prompt_template = load_prompt(prompt_name) # Aunque ahora lo hará call_llm_and_parse_json_result, la dejamos para validación inicial
+        _ = load_prompt(prompt_name)
     except FileNotFoundError as e:
-        for item in items:
-            item.status = "fatal_error"
-            item.errors.append(
-                ReportEntrySchema(
-                    code="PROMPT_NOT_FOUND",
-                    message=f"Prompt '{prompt_name}' not found for style refinement: {e}",
-                    field="prompt_name",
-                    severity="error"
-                )
-            )
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary=f"Error fatal: El archivo de prompt '{prompt_name}' no fue encontrado."
-            )
-        logger.error(f"Failed to load prompt '{prompt_name}': {e}")
-        return items
+        return handle_prompt_not_found_error(items, stage_name, prompt_name, e)
 
     for item in items:
-        # 1. Saltar ítems ya en estado de error terminal
         if skip_if_terminal_error(item, stage_name):
             continue
 
-        # Asegurarse de que el ítem tenga un payload para refinar
         if not item.payload:
-            item.status = "refinement_skipped_no_payload"
-            item.errors.append(
-                ReportEntrySchema(
-                    code="NO_PAYLOAD_FOR_REFINEMENT",
-                    message="El ítem no tiene un payload para refinar el estilo.",
-                    severity="error"
-                )
+            handle_missing_payload(
+                item,
+                stage_name,
+                "NO_PAYLOAD_FOR_REFINEMENT",
+                "El ítem no tiene un payload para refinar el estilo.",
+                "refinement_skipped_no_payload",
+                "Saltado: no hay payload de ítem para refinar el estilo."
             )
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary="Saltado: no hay payload de ítem para refinar el estilo."
-            )
-            logger.warning(f"Item {item.temp_id} skipped in {stage_name}: no payload.")
             continue
 
         logger.info(f"Refining style for item {item.temp_id} using prompt '{prompt_name}'.")
 
-        # El refinador de estilo no necesita una lista de "problems" específicos como el lógico.
-        # Recibe el ítem completo y aplica una revisión integral.
         llm_input_content = item.payload.model_dump_json(indent=2)
 
-        # 2. Llamada al LLM y parseo usando la utilidad
-        refinement_result_raw, llm_errors = await call_llm_and_parse_json_result(
+        refinement_result_raw, llm_errors, _ = await call_llm_and_parse_json_result(
             prompt_name=prompt_name,
             user_input_content=llm_input_content,
             stage_name=stage_name,
             item=item,
             ctx=ctx,
-            expected_schema=RefinementResultSchema # Esperamos la misma estructura de resultado de refinamiento
+            expected_schema=RefinementResultSchema
         )
 
-        if llm_errors: # Si hubo errores de llamada o parseo del LLM
-            item.status = "refinement_failed" # Estado de fallo genérico de refinamiento
-            item.errors.extend(llm_errors)
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary=f"Fallo en llamada/parseo del LLM para refinamiento de estilo. Errores: {', '.join([e.code for e in llm_errors])}"
-            )
-            logger.error(f"LLM call or parsing failed for item {item.temp_id} in {stage_name}. Errors: {llm_errors}")
-            continue # Pasa al siguiente ítem
+        if await handle_llm_call_and_parse_errors(
+            item=item,
+            stage_name=stage_name,
+            llm_errors_from_call_parse=llm_errors,
+            llm_fail_status="refinement_failed",
+            summary_prefix="Fallo en llamada/parseo del LLM para refinamiento de estilo"
+        ):
+            continue
 
-        # Asegurarse de que el resultado parseado no es None si no hubo errores de LLM
         if not refinement_result_raw:
-             item.status = "refinement_failed_no_result"
+             update_item_status_and_audit(
+                 item=item,
+                 stage_name=stage_name,
+                 new_status="refinement_failed_no_result",
+                 summary_msg="Error interno: La utilidad LLM no devolvió resultado de refinamiento."
+             )
              item.errors.append(
                  ReportEntrySchema(
                      code="NO_REFINEMENT_RESULT",
@@ -108,18 +89,10 @@ async def refine_item_style_stage(items: List[Item], ctx: Dict[str, Any]) -> Lis
                      severity="error"
                  )
              )
-             add_audit_entry(
-                 item=item,
-                 stage_name=stage_name,
-                 summary="Error interno: La utilidad LLM no devolvió resultado de refinamiento."
-             )
              logger.error(f"Internal error: LLM utility returned no result for item {item.temp_id} in {stage_name}.")
              continue
 
-
-        # Validar que el item_id del refinador coincide
         if refinement_result_raw.item_id != item.temp_id:
-            item.status = "refinement_failed_mismatch"
             error_msg = f"Mismatched item_id in LLM style refinement response. Expected {item.temp_id}, got {refinement_result_raw.item_id}."
             item.errors.append(
                 ReportEntrySchema(
@@ -129,43 +102,30 @@ async def refine_item_style_stage(items: List[Item], ctx: Dict[str, Any]) -> Lis
                     severity="error"
                 )
             )
-            add_audit_entry(
+            update_item_status_and_audit(
                 item=item,
                 stage_name=stage_name,
-                summary=f"Item ID mismatched en respuesta de refinamiento de estilo."
+                new_status="refinement_failed_mismatch",
+                summary_msg="Item ID mismatched en respuesta de refinamiento de estilo."
             )
             logger.error(error_msg)
             continue
 
-        # Aplicar las correcciones al payload del ítem
-        item.payload = refinement_result_raw.item_refinado # Reemplazamos el payload con el corregido
+        item.payload = refinement_result_raw.item_refinado
 
-        # Limpiar las advertencias de estilo anteriores (generadas por validate_soft)
-        # Esto asume que el refinador intentó corregir todos los problemas de estilo.
-        # Podríamos hacer un filtrado más fino si el refinador indica qué warnings corrigió.
-        # Por ahora, eliminamos todas las warnings de 'soft' para reevaluar en etapas posteriores.
-        item.warnings = [
-            warn for warn in item.warnings
-            if not (warn.code.startswith("W") and warn.code not in ["W106_TODAS_NINGUNA", "W101_STEM_NEG_LOWER"]) # Mantener warnings que el refinador no debería tocar.
-            # Los warnings como W106 y W101 podrían ser errores de HARD_VALIDATION si no se corrigen en la siguiente validación.
-        ]
-        # También limpiamos errores de LLM/parseo anteriores si los hubo
-        item.errors = [
-            err for err in item.errors
-            if not (err.code.startswith("LLM_CALL_FAILED") or err.code.startswith("LLM_PARSE_ERROR") or err.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR"))
-        ]
+        # Limpiar warnings y errores que este refinador debería haber corregido
+        fixed_codes = {c.error_code for c in refinement_result_raw.correcciones_realizadas if c.error_code}
+        clean_specific_errors(item, fixed_codes)
+        clean_item_llm_errors(item) # Limpiar también errores LLM que pueden haberse añadido
 
-        # Añadir las correcciones realizadas al registro de auditoría del ítem
-        add_audit_entry(
+        update_item_status_and_audit(
             item=item,
             stage_name=stage_name,
-            summary="Refinamiento de estilo aplicado.",
-            corrections=refinement_result_raw.correcciones_realizadas # Usamos la lista de correcciones del LLM
+            new_status="refining_style_applied", # Actualizado a un estado más específico
+            summary_msg="Refinamiento de estilo aplicado.",
+            correcciones=refinement_result_raw.correcciones_realizadas
         )
-
-        # Marcar el ítem para revalidación por una etapa de estilo posterior (ej. validate_soft de nuevo o una final)
-        item.status = "refining_style_applied"
         logger.info(f"Item {item.temp_id} style refinement applied. Status: {item.status}")
 
-    logger.info(f"Style refinement stage completed for all items.")
+    logger.info("Style refinement stage completed for all items.")
     return items

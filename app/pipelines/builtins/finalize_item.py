@@ -5,14 +5,21 @@ import logging
 from typing import List, Dict, Any
 
 from ..registry import register
-# Eliminadas generate_response, LLMResponse, load_prompt (encapsulados en llm_utils)
-from app.prompts import load_prompt # Mantenemos para verificación inicial de prompt_name
+from app.prompts import load_prompt
 from app.schemas.models import Item
 from app.schemas.item_schemas import ReportEntrySchema, FinalizationResultSchema
 
-# Importar las nuevas utilidades
 from ..utils.llm_utils import call_llm_and_parse_json_result
-from ..utils.stage_helpers import skip_if_terminal_error, add_audit_entry
+from ..utils.stage_helpers import ( # Importar las nuevas funciones helper
+    skip_if_terminal_error,
+    add_audit_entry,
+    handle_prompt_not_found_error,
+    handle_missing_payload,
+    clean_item_llm_errors,
+    clean_specific_errors, # Usada para limpiar errores después de correcciones
+    update_item_status_and_audit,
+    handle_llm_call_and_parse_errors
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,86 +27,62 @@ logger = logging.getLogger(__name__)
 async def finalize_item_stage(items: List[Item], ctx: Dict[str, Any]) -> List[Item]:
     """
     Etapa de finalización de ítems mediante un LLM (Agente Final).
-    Realiza una revisión final de coherencia global y aplica micro-correcciones.
     Refactorizado para usar llm_utils y stage_helpers.
     """
     stage_name = "finalize_item"
 
     params = ctx.get("params", {}).get(stage_name, {})
-    prompt_name = params.get("prompt", "07_agent_final.md") # Se mantiene un default, pero pipeline.yml debería definirlo
+    prompt_name = params.get("prompt", "07_agent_final.md")
 
     try:
         _ = load_prompt(prompt_name)
     except FileNotFoundError as e:
-        for item in items:
-            item.status = "fatal_error"
-            item.errors.append(
-                ReportEntrySchema(
-                    code="PROMPT_NOT_FOUND",
-                    message=f"Prompt '{prompt_name}' not found for finalization stage: {e}",
-                    field="prompt_name",
-                    severity="error"
-                )
-            )
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary=f"Error fatal: El archivo de prompt '{prompt_name}' no fue encontrado."
-            )
-        logger.error(f"Failed to load prompt '{prompt_name}': {e}")
-        return items
+        return handle_prompt_not_found_error(items, stage_name, prompt_name, e)
 
     for item in items:
-        # 1. Saltar ítems ya en estado de error terminal
         if skip_if_terminal_error(item, stage_name):
             continue
 
-        # Asegurarse de que el ítem tenga un payload para finalizar
         if not item.payload:
-            item.status = "finalization_skipped_no_payload"
-            item.errors.append(
-                ReportEntrySchema(
-                    code="NO_PAYLOAD_FOR_FINALIZATION",
-                    message="El ítem no tiene un payload para la etapa de finalización.",
-                    severity="error"
-                )
+            handle_missing_payload(
+                item,
+                stage_name,
+                "NO_PAYLOAD_FOR_FINALIZATION",
+                "El ítem no tiene un payload para la etapa de finalización.",
+                "finalization_skipped_no_payload",
+                "Saltado: no hay payload de ítem para la finalización."
             )
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary="Saltado: no hay payload de ítem para la finalización."
-            )
-            logger.warning(f"Item {item.temp_id} skipped in {stage_name}: no payload.")
             continue
 
         logger.info(f"Finalizing item {item.temp_id} using prompt '{prompt_name}'.")
 
-        # 2. Preparar input para el LLM: Ítem completo para revisión global
         llm_input_content = item.payload.model_dump_json(indent=2)
 
-        # 3. Llamada al LLM y parseo usando la utilidad
-        final_result_from_llm, llm_errors, _ = await call_llm_and_parse_json_result( # No necesitamos el raw_llm_text aquí
+        final_result_from_llm, llm_errors, _ = await call_llm_and_parse_json_result(
             prompt_name=prompt_name,
             user_input_content=llm_input_content,
             stage_name=stage_name,
             item=item,
             ctx=ctx,
-            expected_schema=FinalizationResultSchema # Esperamos la estructura de resultado de finalización
+            expected_schema=FinalizationResultSchema
         )
 
-        if llm_errors: # Si hubo errores de llamada o parseo del LLM
-            item.status = "llm_finalization_failed"
-            item.errors.extend(llm_errors)
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary=f"Fallo en llamada/parseo del LLM para finalización. Errores: {', '.join([e.code for e in llm_errors])}"
-            )
-            logger.error(f"LLM call or parsing failed for item {item.temp_id} in {stage_name}. Errors: {llm_errors}")
+        if await handle_llm_call_and_parse_errors(
+            item=item,
+            stage_name=stage_name,
+            llm_errors_from_call_parse=llm_errors,
+            llm_fail_status="llm_finalization_failed",
+            summary_prefix="Fallo en llamada/parseo del LLM para finalización"
+        ):
             continue
 
-        if not final_result_from_llm: # Error interno de la utilidad
-             item.status = "finalization_failed_no_result"
+        if not final_result_from_llm:
+             update_item_status_and_audit(
+                 item=item,
+                 stage_name=stage_name,
+                 new_status="finalization_failed_no_result",
+                 summary_msg="Error interno: La utilidad LLM no devolvió un resultado de finalización válido."
+             )
              item.errors.append(
                  ReportEntrySchema(
                      code="NO_FINALIZATION_RESULT",
@@ -107,17 +90,10 @@ async def finalize_item_stage(items: List[Item], ctx: Dict[str, Any]) -> List[It
                      severity="error"
                  )
              )
-             add_audit_entry(
-                 item=item,
-                 stage_name=stage_name,
-                 summary="Error interno: La utilidad LLM no devolvió resultado de finalización."
-             )
              logger.error(f"Internal error: LLM utility returned no finalization result for item {item.temp_id} in {stage_name}.")
              continue
 
-        # Validar que el item_id del resultado final coincide
         if final_result_from_llm.item_id != item.temp_id:
-            item.status = "finalization_failed_mismatch"
             error_msg = f"Mismatched item_id in LLM finalization response. Expected {item.temp_id}, got {final_result_from_llm.item_id}."
             item.errors.append(
                 ReportEntrySchema(
@@ -127,23 +103,22 @@ async def finalize_item_stage(items: List[Item], ctx: Dict[str, Any]) -> List[It
                     severity="error"
                 )
             )
-            add_audit_entry(
+            update_item_status_and_audit(
                 item=item,
                 stage_name=stage_name,
-                summary="Item ID mismatched en respuesta de finalización."
+                new_status="finalization_failed_mismatch",
+                summary_msg="Item ID mismatched en respuesta de finalización."
             )
             logger.error(error_msg)
             continue
 
-        # Aplicar las correcciones finales si existen
         if final_result_from_llm.item_final:
-            item.payload = final_result_from_llm.item_final # Reemplazamos el payload con el final
-            # Limpiar errores/advertencias relacionados con campos que pudieron ser corregidos
+            item.payload = final_result_from_llm.item_final
             fixed_codes = {c.error_code for c in final_result_from_llm.correcciones_finales if c.error_code}
-            item.errors = [err for err in item.errors if err.code not in fixed_codes]
-            item.warnings = [warn for warn in item.warnings if warn.code not in fixed_codes]
+            clean_specific_errors(item, fixed_codes) # Limpiar errores específicos corregidos
 
-        # Añadir correcciones finales y advertencias finales al ítem
+        clean_item_llm_errors(item) # Limpiar cualquier error LLM/parseo remanente de esta etapa
+
         if final_result_from_llm.correcciones_finales:
             add_audit_entry(
                 item=item,
@@ -160,7 +135,6 @@ async def finalize_item_stage(items: List[Item], ctx: Dict[str, Any]) -> List[It
                 summary=f"Advertencias finales: {len(final_result_from_llm.final_warnings)} detectadas."
             )
 
-        # Añadir observaciones finales del agente (si las hay)
         if final_result_from_llm.observaciones_finales:
             add_audit_entry(
                 item=item,
@@ -168,24 +142,17 @@ async def finalize_item_stage(items: List[Item], ctx: Dict[str, Any]) -> List[It
                 summary=f"Observaciones finales del Agente: {final_result_from_llm.observaciones_finales}"
             )
 
-        # Determinar el estado final basado en si el Agente Final reporta que el chequeo fue OK y no hay nuevos errores críticos.
-        # Limpiar errores de LLM/parseo de esta etapa si los hubo antes del proceso
-        item.errors = [
-            err for err in item.errors
-            if not (err.code.startswith("LLM_CALL_FAILED") or err.code.startswith("LLM_PARSE_VALIDATION_ERROR") or err.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR"))
-        ]
-
         # El ítem se considera finalizado si el LLM dice que está OK y no quedan errores de severidad "error".
         if final_result_from_llm.final_check_ok and not any(err.severity == "error" for err in item.errors):
-            item.status = "finalized"
-            final_summary_msg = "Ítem finalizado y listo para persistir."
+            update_item_status_and_audit(item=item, stage_name=stage_name, new_status="finalized", summary_msg="Ítem finalizado y listo para persistir.")
         else:
-            item.status = "final_failed_validation"
-            final_summary_msg = "Ítem no pasó la validación final o tiene errores persistentes."
-            logger.warning(f"Item {item.temp_id} not finalized: {final_summary_msg}. Final check OK: {final_result_from_llm.final_check_ok}. Current Errors: {item.errors}")
-
-        add_audit_entry(item=item, stage_name=stage_name, summary=final_summary_msg)
-        logger.info(f"Item {item.temp_id} finalization result: {item.status}")
+            update_item_status_and_audit(
+                item=item,
+                stage_name=stage_name,
+                new_status="final_failed_validation",
+                summary_msg=f"Ítem no pasó la validación final o tiene errores persistentes. Final check OK: {final_result_from_llm.final_check_ok}. Current Errors: {item.errors}"
+            )
+            logger.warning(f"Item {item.temp_id} not finalized: {item.status}. Current Errors: {item.errors}")
 
     logger.info("Finalize item stage completed for all items.")
     return items

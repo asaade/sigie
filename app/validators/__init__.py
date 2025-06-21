@@ -1,39 +1,25 @@
 # app/validators/__init__.py
 
 import json
-from typing import List, Tuple
+from typing import List, Tuple, Any
 from app.pipelines.utils.parsers import extract_json_block
 from app.schemas.item_schemas import ReportEntrySchema, LogicValidationResultSchema # Importar el esquema completo
 
-def parse_logic_report(text: str) -> Tuple[bool, List[ReportEntrySchema]]:
+def parse_logic_report(text: str) -> Tuple[LogicValidationResultSchema, List[ReportEntrySchema]]: # Cambio en el primer tipo de retorno
     """
     Parsea la respuesta del Agente Razonamiento (validate_logic).
-    Extrae el bloque JSON, lo convierte en el esquema LogicValidationResultSchema,
-    y devuelve:
-      - logic_ok: bool del campo "logic_ok"
-      - errors: Lista de ReportEntrySchema (añadiendo severity="error" si no está presente)
+    Devuelve:
+      - parsed_result: Objeto LogicValidationResultSchema.
+      - errors: Lista de ReportEntrySchema (errores de parseo si los hay).
     """
     clean_json_str = extract_json_block(text)
     try:
-        # Validar la respuesta del LLM directamente con el esquema Pydantic
         report_data = LogicValidationResultSchema.model_validate_json(clean_json_str)
-
-        # Asegurar que cada error tenga severity="error" como este agente sólo reporta errores críticos
-        processed_errors = []
-        for error in report_data.errors:
-            processed_errors.append(
-                ReportEntrySchema(
-                    code=error.code,
-                    message=error.message,
-                    field=error.field,
-                    severity="error" # Forzar severity a "error" para este agente
-                )
-            )
-
-        return report_data.logic_ok, processed_errors
+        # Los errores del LLM ya están dentro de report_data.errors
+        # La utilidad call_llm_and_parse_json_result añadirá los errores de parseo de la utilidad
+        return report_data, [] # Devolver lista vacía para errores del parser si la validación Pydantic fue exitosa
     except (json.JSONDecodeError, ValueError) as e:
-        # Si el JSON es inválido o no se ajusta al esquema
-        return False, [
+        return None, [ # Devolver None para el resultado si falla el parseo
             ReportEntrySchema(
                 code="LLM_PARSE_ERROR",
                 message=f"Fallo al parsear la respuesta del LLM para el reporte lógico: {e}. Raw: {clean_json_str[:200]}...",
@@ -41,8 +27,7 @@ def parse_logic_report(text: str) -> Tuple[bool, List[ReportEntrySchema]]:
             )
         ]
     except Exception as e:
-        # Cualquier otro error inesperado
-        return False, [
+        return None, [ # Devolver None para el resultado si falla el parseo
             ReportEntrySchema(
                 code="UNEXPECTED_PARSE_ERROR",
                 message=f"Error inesperado al parsear reporte lógico del LLM: {e}",
@@ -51,41 +36,46 @@ def parse_logic_report(text: str) -> Tuple[bool, List[ReportEntrySchema]]:
         ]
 
 
-def parse_policy_report(text: str) -> Tuple[bool, List[ReportEntrySchema]]:
+def parse_policy_report(text: str) -> Tuple[Any, List[ReportEntrySchema]]: # Cambio en el tipo de retorno para custom_parser_func
     """
     Parsea la respuesta del Agente de Políticas (validate_policy).
-    Extrae el bloque JSON, lo convierte en dict, y devuelve:
-      - policy_ok: bool del campo "policy_ok"
-      - warnings: Lista de ReportEntrySchema (este agente emite warnings)
+    Devuelve:
+      - policy_report_dict: Un diccionario con 'policy_ok' y 'warnings'/'errors'.
+      - errors: Lista de ReportEntrySchema (errores de parseo si los hay).
     """
     clean_json_str = extract_json_block(text)
     try:
         data = json.loads(clean_json_str)
         policy_ok = bool(data.get("policy_ok", False))
 
-        raw_errors_warnings = data.get("warnings", []) # El prompt de políticas usa "warnings"
+        raw_reports = data.get("warnings", []) # El prompt de políticas puede usar "warnings" o "errors"
+        # Si el prompt de políticas usa "errors" para errores críticos, ajustar aquí
+        if "errors" in data and isinstance(data["errors"], list):
+            raw_reports.extend(data["errors"])
+
         parsed_entries = []
-        for entry in raw_errors_warnings:
-            # Asumir que el LLM puede dar severity, o forzar a 'warning' si es el agente de políticas
+        for entry in raw_reports:
             parsed_entries.append(
                 ReportEntrySchema(
-                    code=entry.get("warning_code", "UNKNOWN_CODE"), # Prompt usa warning_code
+                    code=entry.get("warning_code", entry.get("code", "UNKNOWN_CODE")), # Aceptar 'warning_code' o 'code'
                     message=entry.get("message", "Mensaje desconocido."),
-                    field=entry.get("field"), # Si el LLM lo proporciona
-                    severity=entry.get("severity", "warning") # El agente de políticas sí puede dar warnings
+                    field=entry.get("field"),
+                    severity=entry.get("severity", "warning") # El agente de políticas puede dar warnings o errors
                 )
             )
-        return policy_ok, parsed_entries
+        # Devolvemos un dict con los datos clave del reporte, y los errores/advertencias.
+        # Esto es lo que custom_parser_func necesita para pasar la información.
+        return {"policy_ok": policy_ok, "reports": parsed_entries}, [] # Devolver lista vacía para errores del parser si el JSON es válido
     except (json.JSONDecodeError, ValueError) as e:
-        return False, [
+        return None, [ # Devolver None para el resultado si falla el parseo
             ReportEntrySchema(
                 code="LLM_PARSE_ERROR_POLICY",
                 message=f"Fallo al parsear la respuesta del LLM para el reporte de política: {e}. Raw: {clean_json_str[:200]}...",
-                severity="error" # Un error de parseo es fatal aquí
+                severity="error"
             )
         ]
     except Exception as e:
-        return False, [
+        return None, [ # Devolver None para el resultado si falla el parseo
             ReportEntrySchema(
                 code="UNEXPECTED_PARSE_ERROR_POLICY",
                 message=f"Error inesperado al parsear reporte de política del LLM: {e}",
