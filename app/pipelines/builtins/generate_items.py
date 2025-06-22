@@ -1,134 +1,74 @@
-# app/pipelines/builtins/generate_items.py
+# Archivo actualizado: app/pipelines/builtins/generate_items.py
 
 from __future__ import annotations
 import logging
-import json
-from typing import List, Dict, Any
-from uuid import uuid4
+import asyncio
+from typing import List, Dict, Any, Optional
 
 from ..registry import register
-from app.prompts import load_prompt
 from app.schemas.models import Item
-from app.schemas.item_schemas import ItemPayloadSchema, UserGenerateParams, ReportEntrySchema, MetadataSchema
-
+from app.schemas.item_schemas import ItemPayloadSchema, UserGenerateParams
+from app.pipelines.abstractions import BaseStage
 from ..utils.llm_utils import call_llm_and_parse_json_result
-from ..utils.stage_helpers import (
-    skip_if_terminal_error,
-    add_audit_entry,
-    handle_prompt_not_found_error,
-    clean_item_llm_errors,
-    check_and_handle_batch_llm_errors, # Nueva
-    check_and_handle_llm_response_format_error, # Nueva
-    check_and_handle_llm_item_count_mismatch # Nueva
-)
-
 
 logger = logging.getLogger(__name__)
 
-@register("generate")
-async def generate_stage(items: List[Item], ctx: Dict[str, Any]) -> List[Item]:
+@register("generate_items")
+class GenerateItemsStage(BaseStage):
     """
-    Genera el payload de los ítems en un solo lote utilizando un LLM.
-    Refactorizado para usar llm_utils y stage_helpers.
+    Etapa inicial del pipeline que genera un lote de nuevos ítems desde cero
+    basándose en los parámetros proporcionados por el usuario.
     """
-    stage_name = "generate"
 
-    user_params: UserGenerateParams = UserGenerateParams.model_validate(ctx.get("user_params", {}))
+    async def _process_one_generation(self, item_index: int) -> Optional[Item]:
+        """
+        Lógica para generar un único ítem. Es llamada de forma concurrente.
+        """
+        # Los parámetros de la etapa y del usuario están en self.params y self.ctx
+        user_params = self.ctx.get("user_params", {})
+        prompt_name = self.params.get("prompt") # El prompt se define en pipeline.yml
 
-    params = ctx.get("params", {}).get(stage_name, {})
-    prompt_name = params.get("prompt", "01_agent_dominio.md")
+        # El input para el LLM son los parámetros del usuario en formato JSON
+        llm_input = UserGenerateParams(**user_params).model_dump_json(indent=2)
 
-    try:
-        _ = load_prompt(prompt_name)
-    except FileNotFoundError as e:
-        return handle_prompt_not_found_error(items, stage_name, prompt_name, e)
+        payload_result, llm_errors, _ = await call_llm_and_parse_json_result(
+            prompt_name=prompt_name,
+            user_input_content=llm_input,
+            stage_name=self.stage_name,
+            item=Item(), # Pasamos un ítem temporal para la auditoría de tokens
+            ctx=self.ctx,
+            expected_schema=ItemPayloadSchema,
+            **self.params
+        )
 
-    llm_input_payload = user_params.model_dump()
-    llm_input_payload["cantidad"] = len(items)
+        if llm_errors or not payload_result:
+            error_msg = llm_errors[0].message if llm_errors else "LLM did not return a valid payload."
+            self.logger.error(f"Failed to generate item #{item_index}: {error_msg}")
+            # En una política de fallo temprano, simplemente no devolvemos el ítem.
+            return None
 
-    user_input_content_json = json.dumps(llm_input_payload, ensure_ascii=False, indent=2)
+        # Si la generación es exitosa, creamos el objeto Item
+        new_item = Item(payload=payload_result)
+        summary = f"Item generated successfully with temp_id {new_item.temp_id}."
+        self.logger.info(summary)
+        self._set_status(new_item, "success", summary)
 
-    logger.info(f"Generating {len(items)} items with prompt '{prompt_name}' in a single batch.")
+        return new_item
 
-    representative_item = items[0] if items else Item(payload=ItemPayloadSchema(item_id=uuid4(), metadata=MetadataSchema(idioma_item="es", area="", asignatura="", tema="", nivel_destinatario="", nivel_cognitivo="recordar", dificultad_prevista="facil"))) # Se necesita metadata completa para inicializar
+    async def execute(self, items: List[Item]) -> List[Item]:
+        """
+        Punto de entrada. Orquesta la generación de `n_items` en paralelo.
+        Ignora la lista de 'items' de entrada.
+        """
+        user_params = self.ctx.get("user_params", {})
+        n_items = user_params.get("n_items", 1)
+        self.logger.info(f"Starting generation of {n_items} items.")
 
-    generated_payloads_list_raw, llm_errors_from_call_parse, _ = await call_llm_and_parse_json_result(
-        prompt_name=prompt_name,
-        user_input_content=user_input_content_json,
-        stage_name=stage_name,
-        item=representative_item, # Se pasa un item representativo para tokens y auditoría de la llamada global
-        ctx=ctx,
-        expected_schema=List[ItemPayloadSchema]
-    )
+        tasks = [self._process_one_generation(i) for i in range(n_items)]
+        generation_results = await asyncio.gather(*tasks)
 
-    # Manejar errores de la utilidad (fallo en llamada LLM o parseo inicial de la lista)
-    if check_and_handle_batch_llm_errors(
-        items=items,
-        stage_name=stage_name,
-        llm_errors_from_call_parse=llm_errors_from_call_parse,
-        summary_prefix="Error fatal en la generación/parseo del lote por LLM",
-        llm_fail_status="generation_failed"
-    ):
-        return items
+        # Filtramos los resultados nulos (fallos de generación) y devolvemos la nueva lista
+        new_items = [item for item in generation_results if item is not None]
 
-    # Verificar que el LLM devolvió una lista
-    if check_and_handle_llm_response_format_error(
-        items=items,
-        stage_name=stage_name,
-        generated_payloads_list_raw=generated_payloads_list_raw,
-        expected_type=List[ItemPayloadSchema], # Type[List[ItemPayloadSchema]]
-        error_code="LLM_RESPONSE_FORMAT_INVALID",
-        message="LLM did not return a list of items as expected.",
-        llm_fail_status="generation_failed"
-    ):
-        return items
-
-    # Verificar que el LLM generó la cantidad esperada de ítems
-    if check_and_handle_llm_item_count_mismatch(
-        items=items,
-        stage_name=stage_name,
-        generated_payloads_list_raw=generated_payloads_list_raw,
-        error_code="LLM_ITEM_COUNT_MISMATCH",
-        message=f"LLM generated {len(generated_payloads_list_raw)} items, but {len(items)} were requested.",
-        llm_fail_status="generation_failed"
-    ):
-        return items
-
-    payloads_by_id = {payload.item_id: payload for payload in generated_payloads_list_raw}
-
-    for item in items:
-        if skip_if_terminal_error(item, stage_name):
-            continue
-
-        generated_payload_for_item = payloads_by_id.get(item.temp_id)
-
-        if generated_payload_for_item:
-            item.payload = generated_payload_for_item
-            item.status = "generated"
-            item.prompt_v = prompt_name
-
-            clean_item_llm_errors(item) # Limpia errores de LLM/parseo si este ítem fue exitoso
-
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary=f"Ítem generado exitosamente por el Agente de Dominio (prompt: {prompt_name})."
-            )
-        else:
-            item.status = "generation_failed_mismatch"
-            item.errors.append(
-                ReportEntrySchema(
-                    code="ITEM_ID_MISMATCH",
-                    message=f"LLM no devolvió un payload para el item_id: {item.temp_id}",
-                    severity="error"
-                )
-            )
-            add_audit_entry(
-                item=item,
-                stage_name=stage_name,
-                summary=f"Fallo al mapear el payload generado por el LLM al ítem (missing item_id: {item.temp_id})."
-            )
-            logger.error(f"LLM did not return a payload for item_id: {item.temp_id} during generation.")
-
-    logger.info(f"Generation stage completed for {len(items)} items. Total tokens: {ctx.get('usage_tokens_total', 0)}")
-    return items
+        self.logger.info(f"Successfully generated {len(new_items)} out of {n_items} requested items.")
+        return new_items

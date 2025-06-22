@@ -1,78 +1,66 @@
-# pipeline.yml (VERSION ACTUALIZADA)
-version: 2
+# Archivo final: pipeline.yml
+
+version: 4.0 # Marcamos una nueva versión mayor de la estructura
 stages:
-  - name: generate
-    prompt: 01_agent_dominio.md
-    provider: openai # O el proveedor global por defecto (ej. gemini, ollama)
-    model: gpt-4o-mini # Ejemplo de modelo específico para OpenAI
-    temperature: 0.7
-    max_tokens: 3000
+  - name: generate_items
+    # Esta etapa tiene una lógica única y no usa el motor genérico.
+    # El runner la llamará directamente por su nombre.
 
   - name: validate_hard
+    # Esta etapa no usa LLM y tiene su propia lógica.
 
   - name: validate_logic
-    prompt: 02_agent_razonamiento.md
-    provider: gemini # Ejemplo: usar Gemini para lógica
-    model: gemini-1.5-pro
-    temperature: 0.1
-    max_tokens: 1500
-    on_fail:
-      goto: refine_item_logic
-      max_attempts: 2
-      final_status_on_exhaustion: "failed_logic_validation_after_retries"
+    processor: llm_engine  # Indica al runner que use nuestro motor universal
+    params:
+      prompt: "02_agent_razonamiento.md"
+      prepare_logic: "validation"
+      apply_logic: "validation"
+      schema_logic: "validation"
+      store_findings_in: "errors" # Los fallos de lógica se consideran errores
 
   - name: refine_item_logic
-    prompt: 03_agente_refinador_razonamiento.md
-    provider: gemini # Mismo proveedor que el validador lógico
-    model: gemini-1.5-pro
-    temperature: 0.3
-    max_tokens: 2500
+    processor: llm_engine
+    params:
+      prompt: "03_agente_refinador_razonamiento.md"
+      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
+      prepare_logic: "refinement"
+      apply_logic: "refinement"
+      schema_logic: "refinement"
 
-  - name: validate_style
-    prompt: 04_agent_style_validator.md # (Asumiendo que este prompt se creará)
-    provider: openai # Ejemplo: usar OpenAI para validación de estilo
-    model: gpt-4o-mini # O un modelo más económico como "gpt-3.5-turbo"
-    temperature: 0.5
-    max_tokens: 1000
-    on_fail:
-      goto: refine_item_style
-      max_attempts: 2
-      final_status_on_exhaustion: "failed_style_validation_after_retries"
-
-  - name: refine_item_style
-    prompt: 04_agente_refinador_estilo.md
-    provider: openai # Mismo proveedor que el validador de estilo
-    model: gpt-4o-mini
-    temperature: 0.3
-    max_tokens: 2000
+  - name: correct_item_style
+    processor: llm_engine
+    params:
+      prompt: "04_agente_refinador_estilo.md"
+      # No hay 'listen_to_status', por lo que se aplica a todos los ítems listos
+      prepare_logic: "correction" # Usa el preparador que no envía problemas previos
+      apply_logic: "refinement"   # Reutiliza el aplicador que reemplaza el payload
+      schema_logic: "refinement"  # Espera el mismo formato de salida que un refinamiento
 
   - name: validate_policy
-    prompt: 05_agent_politicas.md
-    provider: openai # Ejemplo: usar OpenAI para políticas
-    model: gpt-4o-mini
-    temperature: 0.1
-    max_tokens: 1500
-    on_fail:
-      goto: refine_item_policy
-      max_attempts: 2
-      final_status_on_exhaustion: "failed_policy_validation_after_retries"
+    processor: llm_engine
+    params:
+      prompt: "05_agent_politicas.md"
+      prepare_logic: "validation"
+      apply_logic: "validation"
+      schema_logic: "validation"
+      store_findings_in: "warnings" # Los fallos de política son advertencias
 
   - name: refine_item_policy
-    prompt: 06_agente_refinador_politicas.md
-    provider: openai # Mismo proveedor que el validador de políticas
-    model: gpt-4o-mini
-    temperature: 0.3
-    max_tokens: 2500
+    processor: llm_engine
+    params:
+      prompt: "06_agente_refinador_politicas.md"
+      listen_to_status_pattern: ".fail"
+      prepare_logic: "refinement"
+      apply_logic: "refinement"
+      schema_logic: "refinement"
 
   - name: validate_soft
-    # No usa LLM, no necesita provider
+    # Etapa no-LLM.
 
   - name: finalize_item
-    prompt: 07_agent_final.md
-    provider: gemini # Ejemplo: usar Gemini para la etapa final
-    model: gemini-1.5-pro
-    temperature: 0.2
-    max_tokens: 2000
+    prompt: "07_agent_final.md"
+    # Esta etapa es candidata a ser integrada al motor en el futuro,
+    # pero por ahora la mantenemos con su propia lógica.
 
   - name: persist
-    # No usa LLM, no necesita provider
+    # Etapa final sin LLM.

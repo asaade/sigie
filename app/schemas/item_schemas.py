@@ -140,22 +140,26 @@ class UserGenerateParams(BaseModel):
     class Config:
         extra = "forbid"
 
-class LogicValidationResultSchema(BaseModel):
-    item_id: UUID
-    logic_ok: bool
-    errors: List[ReportEntrySchema]
-
-    class Config:
-        from_attributes = True
+class ValidationResultSchema(BaseModel):
+    """
+    Esquema UNIFICADO para la respuesta de CUALQUIER agente validador.
+    """
+    is_valid: bool = Field(..., description="Veredicto final de la validación. True si pasa, False si falla.")
+    findings: List[ReportEntrySchema] = Field(
+        default_factory=list,
+        description="Lista de problemas, errores o advertencias encontrados por el LLM."
+    )
 
 class RefinementResultSchema(BaseModel):
-    item_id: UUID
-    item_refinado: ItemPayloadSchema
-    correcciones_realizadas: List[CorrectionEntrySchema] = Field(default_factory=list)
-    observaciones_agente: Optional[str] = None
-
-    class Config:
-        from_attributes = True
+    """
+    Define la estructura de la respuesta del LLM para una etapa de refinamiento/corrección.
+    """
+    item_id: UUID = Field(..., description="El ID del ítem que fue refinado para validación.")
+    item_refinado: ItemPayloadSchema = Field(..., description="El payload completo del ítem, corregido y mejorado.")
+    correcciones_realizadas: List[CorrectionEntrySchema] = Field(
+        default_factory=list,
+        description="Una lista de las correcciones específicas que el LLM aplicó."
+    )
 
 class FinalizationResultSchema(BaseModel):
     item_id: UUID
@@ -167,3 +171,11 @@ class FinalizationResultSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class FinalEvaluationSchema(BaseModel):
+    """
+    Define la estructura de la evaluación final emitida por un LLM.
+    """
+    is_publishable: bool = Field(..., description="Veredicto final sobre si el ítem está listo para ser publicado.")
+    score: float = Field(..., ge=0, le=10, description="Una puntuación numérica de la calidad general del ítem (0-10).")
+    justification: str = Field(..., description="Un resumen cualitativo que justifica la puntuación y el veredicto.")

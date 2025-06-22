@@ -4,10 +4,10 @@ from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 from typing import List, Optional, Dict, Any
 
-from app.schemas.item_schemas import ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema
+from app.schemas.item_schemas import BaseModel, ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema, FinalEvaluationSchema
 
 @dataclass(slots=True)
-class Item:
+class Item(BaseModel):
     """Ítem en memoria mientras recorre el pipeline."""
 
     payload: ItemPayloadSchema
@@ -21,6 +21,7 @@ class Item:
     audits: List[AuditEntrySchema] = field(default_factory=list)
     prompt_v: Optional[str] = None
     token_usage: Optional[int] = None
+    final_evaluation: Optional[FinalEvaluationSchema] = None
 
     @classmethod
     def from_payload(cls, payload: ItemPayloadSchema) -> "Item":

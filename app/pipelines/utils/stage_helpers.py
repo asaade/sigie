@@ -1,22 +1,18 @@
-# app/pipelines/utils/stage_helpers.py
+# Archivo completo: app/pipelines/utils/stage_helpers.py
 
+import asyncio
 import logging
-from typing import List, Optional
-from uuid import UUID, uuid4 # Necesario para UUIDs en handle_item_id_mismatch_refinement y AuditEntrySchema
+from typing import List, Optional, Callable, Coroutine, Any
+from uuid import UUID, uuid4
 
 from app.schemas.models import Item
 from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema, RecursoVisualSchema
 
 logger = logging.getLogger(__name__)
 
-# --- Simplified: only checks for the ultimate fatal error ---
+
 def skip_if_terminal_error(item: Item, stage_name: str) -> bool:
-    """
-    Verifica si un ítem ya está en un estado fatal y, si es así,
-    añade una entrada de auditoría y retorna True (indica que debe ser saltado).
-    Los estados de agotamiento de intentos son gestionados por el runner.
-    """
-    if item.status == "fatal_error": # Only check for the most generic fatal state
+    if item.status == "fatal_error":
         add_audit_entry(
             item=item,
             stage_name=stage_name,
@@ -33,9 +29,6 @@ def add_audit_entry(
     corrections: Optional[List[CorrectionEntrySchema]] = None,
     errors_reported: Optional[List[ReportEntrySchema]] = None
 ) -> None:
-    """
-    Añade una entrada de auditoría al ítem.
-    """
     if corrections is None:
         corrections = []
     if errors_reported is None:
@@ -51,9 +44,6 @@ def add_audit_entry(
     logger.debug(f"Audit for item {item.temp_id} in {stage_name}: {summary}")
 
 def handle_prompt_not_found_error(items: List[Item], stage_name: str, prompt_name: str, e: FileNotFoundError) -> List[Item]:
-    """
-    Maneja el error de prompt no encontrado, marca los ítems como fatales y audita.
-    """
     error_msg = f"Prompt '{prompt_name}' not found for stage '{stage_name}': {e}"
     for item in items:
         item.status = "fatal_error"
@@ -73,13 +63,7 @@ def handle_prompt_not_found_error(items: List[Item], stage_name: str, prompt_nam
     logger.error(error_msg)
     return items
 
-# --- Simplified: consolidate LLM call/parse errors into a single handler if needed ---
-# async def handle_llm_call_and_parse_errors(...) - REMOVED / CONSOLIDATED
-
 def handle_missing_payload(item: Item, stage_name: str, error_code: str, message: str, status: str, summary: str) -> None:
-    """
-    Maneja el caso donde el payload del ítem está ausente para una etapa.
-    """
     item.status = status
     item.errors.append(
         ReportEntrySchema(
@@ -96,9 +80,6 @@ def handle_missing_payload(item: Item, stage_name: str, error_code: str, message
     logger.warning(f"Item {item.temp_id} skipped in {stage_name}: {summary}.")
 
 def clean_item_llm_errors(item: Item) -> None:
-    """
-    Limpia los errores y advertencias del ítem que son generados por llamadas/parseo de LLM.
-    """
     item.errors = [
         err for err in item.errors
         if not (
@@ -119,9 +100,6 @@ def clean_item_llm_errors(item: Item) -> None:
     ]
 
 def clean_specific_errors(item: Item, fixed_codes: set) -> None:
-    """
-    Limpia los errores y advertencias de un ítem cuyos códigos han sido corregidos.
-    """
     item.errors = [err for err in item.errors if err.code not in fixed_codes]
     item.warnings = [warn for warn in item.warnings if warn.code not in fixed_codes]
 
@@ -132,9 +110,6 @@ def update_item_status_and_audit(
     summary_msg: str,
     audit_corrections: Optional[List[CorrectionEntrySchema]] = None
 ) -> None:
-    """
-    Actualiza el estado del ítem y añade una entrada de auditoría genérica.
-    """
     item.status = new_status
     add_audit_entry(
         item=item,
@@ -144,11 +119,6 @@ def update_item_status_and_audit(
     )
     logger.info(f"Item {item.temp_id} in {stage_name} status updated to: {item.status}. Summary: {summary_msg}")
 
-# --- Simplified: consolidate batch error handlers ---
-# def check_and_handle_batch_llm_errors(...) - REMOVED / CONSOLIDATED
-# def check_and_handle_llm_response_format_error(...) - REMOVED / CONSOLIDATED
-# def check_and_handle_llm_item_count_mismatch(...) - REMOVED / CONSOLIDATED
-
 def handle_item_id_mismatch_refinement(
     item: Item,
     stage_name: str,
@@ -157,9 +127,6 @@ def handle_item_id_mismatch_refinement(
     status_on_fail: str,
     summary_msg: str
 ) -> None:
-    """
-    Maneja el error de item_id no coincidente en la respuesta de refinamiento del LLM.
-    """
     error_msg = f"Mismatched item_id in LLM response. Expected {expected_id}, got {received_id}."
     item.errors.append(
         ReportEntrySchema(
@@ -178,13 +145,7 @@ def handle_item_id_mismatch_refinement(
     logger.error(f"Item ID mismatched for item {item.temp_id} in {stage_name}: {error_msg}")
 
 def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]:
-    """
-    Inicializa una lista de objetos Item con payloads dummy pero válidos
-    basándose en los user_params.
-    """
     items: List[Item] = []
-    # Asegúrate de que UserGenerateParams tiene todos los campos necesarios para MetadataSchema y el ItemPayloadSchema base
-    # (habilidad, referencia_curricular, contexto_regional, etc.)
     for _ in range(user_params.n_items):
         item_metadata = MetadataSchema(
             idioma_item=user_params.idioma_item,
@@ -226,3 +187,34 @@ def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]
 
         items.append(Item(payload=dummy_payload))
     return items
+
+# ▼▼▼ NUEVA FUNCIÓN AÑADIDA ▼▼▼
+async def process_items_concurrently(
+    items: List[Item],
+    processing_func: Callable[[Item, dict, Any], Coroutine[Any, Any, None]],
+    ctx: dict,
+    **kwargs: Any,
+):
+    """
+    Filtra ítems por estado (si se especifica) y los procesa de forma concurrente.
+    """
+    listen_to_status = kwargs.get("listen_to_status")
+
+    if listen_to_status:
+        items_to_process = [
+            item for item in items if item.status == listen_to_status
+        ]
+        logger.info(f"Found {len(items_to_process)} items with status '{listen_to_status}' to process.")
+    else:
+        # Si no se especifica un estado, se procesan todos los que no estén en un estado final de error.
+        items_to_process = [
+            item for item in items if "fail" not in item.status and "error" not in item.status and item.status != "logic_validated"
+        ]
+        logger.info(f"Processing {len(items_to_process)} items that are not in a final error state.")
+
+    tasks = [
+        processing_func(item, ctx, **kwargs) for item in items_to_process
+    ]
+
+    if tasks:
+        await asyncio.gather(*tasks)

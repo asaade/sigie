@@ -1,131 +1,65 @@
-# app/pipelines/builtins/refine_item_style.py
+# Archivo actualizado: app/pipelines/builtins/refine_item_style.py
 
 from __future__ import annotations
-import logging
-from typing import List, Dict, Any
+import json
+from typing import Type
+from pydantic import BaseModel
 
 from ..registry import register
-from app.prompts import load_prompt
 from app.schemas.models import Item
-from app.schemas.item_schemas import ReportEntrySchema, RefinementResultSchema
+from app.schemas.item_schemas import RefinementResultSchema
+from app.pipelines.abstractions import LLMStage
+from ..utils.stage_helpers import clean_specific_errors, handle_item_id_mismatch_refinement
 
-from ..utils.llm_utils import call_llm_and_parse_json_result
-from ..utils.stage_helpers import ( # Importar las nuevas funciones helper
-    skip_if_terminal_error,
-    handle_prompt_not_found_error,
-    handle_missing_payload,
-    clean_item_llm_errors,
-    clean_specific_errors,
-    update_item_status_and_audit,
-    handle_llm_call_and_parse_errors
-)
-
-logger = logging.getLogger(__name__)
-
-@register("refine_item_style")
-async def refine_item_style_stage(items: List[Item], ctx: Dict[str, Any]) -> List[Item]:
+@register("correct_item_style")
+class CorrectStyleStage(LLMStage):
     """
-    Etapa de refinamiento de estilo de ítems mediante un LLM (Agente Refinador de Estilo).
-    Refactorizado para usar llm_utils y stage_helpers.
+    Aplica correcciones de estilo y formato a un ítem en un solo paso.
+    Esta etapa no depende de una validación previa; el LLM debe
+    identificar y aplicar las mejoras directamente.
     """
-    stage_name = "refine_item_style"
 
-    params = ctx.get("params", {}).get(stage_name, {})
-    prompt_name = params.get("prompt", "04_agente_refinador_estilo.md")
+    def _get_expected_schema(self) -> Type[BaseModel]:
+        """
+        Espera recibir un payload de ítem refinado, por lo que reutiliza
+        el esquema de refinamiento estándar.
+        """
+        return RefinementResultSchema
 
-    try:
-        _ = load_prompt(prompt_name)
-    except FileNotFoundError as e:
-        return handle_prompt_not_found_error(items, stage_name, prompt_name, e)
+    def _prepare_llm_input(self, item: Item) -> str:
+        """
+        Prepara el input para el LLM. Envía el ítem actual sin una lista
+        de problemas preexistentes, ya que el LLM debe realizar la revisión.
+        """
+        # Se envía un array de 'problems' vacío para mantener una estructura
+        # de input consistente con el refinador lógico si el prompt lo requiere.
+        input_payload = {
+            "item": item.payload.model_dump(),
+            "problems": []
+        }
+        return json.dumps(input_payload, indent=2, ensure_ascii=False)
 
-    for item in items:
-        if skip_if_terminal_error(item, stage_name):
-            continue
-
-        if not item.payload:
-            handle_missing_payload(
-                item,
-                stage_name,
-                "NO_PAYLOAD_FOR_REFINEMENT",
-                "El ítem no tiene un payload para refinar el estilo.",
-                "refinement_skipped_no_payload",
-                "Saltado: no hay payload de ítem para refinar el estilo."
+    async def _process_llm_result(self, item: Item, result: RefinementResultSchema):
+        """
+        Procesa el resultado reemplazando el payload del ítem por la
+        versión con el estilo corregido.
+        """
+        # Verificación de seguridad
+        if result.item_id != item.payload.item_id:
+            handle_item_id_mismatch_refinement(
+                item, self.stage_name, item.payload.item_id, result.item_id,
+                f"{self.stage_name}.fail.id_mismatch",
+                "Item ID mismatched in style correction response."
             )
-            continue
+            return
 
-        logger.info(f"Refining style for item {item.temp_id} using prompt '{prompt_name}'.")
+        # Aplica la corrección
+        item.payload = result.item_refinado
 
-        llm_input_content = item.payload.model_dump_json(indent=2)
+        # Limpia errores que el LLM pudo haber corregido incidentalmente
+        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas}
+        if fixed_codes:
+            clean_specific_errors(item, fixed_codes)
 
-        refinement_result_raw, llm_errors, _ = await call_llm_and_parse_json_result(
-            prompt_name=prompt_name,
-            user_input_content=llm_input_content,
-            stage_name=stage_name,
-            item=item,
-            ctx=ctx,
-            expected_schema=RefinementResultSchema
-        )
-
-        if await handle_llm_call_and_parse_errors(
-            item=item,
-            stage_name=stage_name,
-            llm_errors_from_call_parse=llm_errors,
-            llm_fail_status="refinement_failed",
-            summary_prefix="Fallo en llamada/parseo del LLM para refinamiento de estilo"
-        ):
-            continue
-
-        if not refinement_result_raw:
-             update_item_status_and_audit(
-                 item=item,
-                 stage_name=stage_name,
-                 new_status="refinement_failed_no_result",
-                 summary_msg="Error interno: La utilidad LLM no devolvió resultado de refinamiento."
-             )
-             item.errors.append(
-                 ReportEntrySchema(
-                     code="NO_REFINEMENT_RESULT",
-                     message="La utilidad de LLM no devolvió un resultado de refinamiento válido.",
-                     severity="error"
-                 )
-             )
-             logger.error(f"Internal error: LLM utility returned no result for item {item.temp_id} in {stage_name}.")
-             continue
-
-        if refinement_result_raw.item_id != item.temp_id:
-            error_msg = f"Mismatched item_id in LLM style refinement response. Expected {item.temp_id}, got {refinement_result_raw.item_id}."
-            item.errors.append(
-                ReportEntrySchema(
-                    code="ITEM_ID_MISMATCH_REFINEMENT",
-                    message=error_msg,
-                    field="item_id",
-                    severity="error"
-                )
-            )
-            update_item_status_and_audit(
-                item=item,
-                stage_name=stage_name,
-                new_status="refinement_failed_mismatch",
-                summary_msg="Item ID mismatched en respuesta de refinamiento de estilo."
-            )
-            logger.error(error_msg)
-            continue
-
-        item.payload = refinement_result_raw.item_refinado
-
-        # Limpiar warnings y errores que este refinador debería haber corregido
-        fixed_codes = {c.error_code for c in refinement_result_raw.correcciones_realizadas if c.error_code}
-        clean_specific_errors(item, fixed_codes)
-        clean_item_llm_errors(item) # Limpiar también errores LLM que pueden haberse añadido
-
-        update_item_status_and_audit(
-            item=item,
-            stage_name=stage_name,
-            new_status="refining_style_applied", # Actualizado a un estado más específico
-            summary_msg="Refinamiento de estilo aplicado.",
-            correcciones=refinement_result_raw.correcciones_realizadas
-        )
-        logger.info(f"Item {item.temp_id} style refinement applied. Status: {item.status}")
-
-    logger.info("Style refinement stage completed for all items.")
-    return items
+        summary = f"Style correction applied. {len(fixed_codes)} issues reported as fixed."
+        self._set_status(item, "success", summary)
