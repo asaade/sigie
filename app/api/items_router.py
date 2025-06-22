@@ -3,7 +3,6 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional, Dict # Eliminar 'Dict' si no se usa directamente en firmas
 from pathlib import Path
-# Eliminado import json - no se usa directamente en este archivo
 import logging
 from uuid import UUID
 
@@ -36,7 +35,7 @@ class ItemAPIOutput(BaseModel):
     warnings: List[ReportEntrySchema] = Field(default_factory=list, description="Lista de advertencias para el ítem")
     audits: List[AuditEntrySchema] = Field(default_factory=list, description="Historial de auditoría del procesamiento del ítem")
     token_usage: Optional[int] = Field(None, description="Número de tokens consumidos por el ítem en las etapas LLM (distribuido)")
-    db_id: Optional[UUID] = Field(None, description="ID definitivo del ítem en la base de datos, si fue persistido.") # Añadir este campo
+    db_id: Optional[UUID] = Field(None, description="ID definitivo del ítem en la base de datos, si fue persistido.")
 
 class GenerateItemsAPIResponse(BaseModel):
     success: bool = Field(..., description="Indica si la operación de pipeline fue exitosa en general")
@@ -52,26 +51,12 @@ class GenerateItemsAPIResponse(BaseModel):
 async def generate_items(request: GenerationRequest):
     logger.info(f"Received generation request for {request.cantidad} items.")
 
-    user_params = UserGenerateParams(
-        tipo_generacion=request.tipo_generacion,
-        cantidad=request.cantidad,
-        idioma_item=request.idioma_item,
-        area=request.area,
-        asignatura=request.asignatura,
-        tema=request.tema,
-        contexto_regional=request.contexto_regional,
-        nivel_destinatario=request.nivel_destinatario,
-        nivel_cognitivo=request.nivel_cognitivo,
-        dificultad_prevista=request.dificultad_prevista,
-        parametro_irt_b=request.parametro_irt_b,
-        referencia_curricular=request.referencia_curricular,
-        habilidad_evaluable=request.habilidad_evaluable,
-        tipo_reactivo=request.tipo_reactivo,
-        fragmento_contexto=request.fragmento_contexto,
-        recurso_visual=request.recurso_visual,
-        estimulo_compartido=request.estimulo_compartido,
-        especificaciones_por_item=request.especificaciones_por_item
-    )
+    # --- INICIO DE LA MODIFICACIÓN CRÍTICA ---
+    # Simplificar la creación de user_params para que Pydantic maneje el alias 'n_items'
+    # request.model_dump(by_alias=True) convertirá 'cantidad' a 'n_items'
+    # y UserGenerateParams lo validará correctamente.
+    user_params = UserGenerateParams.model_validate(request.model_dump(by_alias=True))
+    # --- FIN DE LA MODIFICACIÓN CRÍTICA ---
 
     try:
         final_items: List[Item]
@@ -84,24 +69,20 @@ async def generate_items(request: GenerationRequest):
         all_successful = True
 
         for item in final_items:
-            # Añadir 'persisted' al conjunto de estados de éxito
             if item.status in ["fatal_error",
                                "failed_hard_validation_after_retries",
                                "failed_logic_validation_after_retries",
                                "failed_policy_validation_after_retries",
                                "final_failed_validation",
                                "generation_failed",
-                               "llm_generation_failed", # Añadir estados de fallo LLM específicos
+                               "llm_generation_failed",
                                "generation_validation_failed",
                                "generation_failed_mismatch",
-                               "persistence_failed_db_error", # Fallos de persistencia
+                               "persistence_failed_db_error",
                                "persistence_failed_unexpected_error",
-                               "final_error_on_persist_stage" # Error fatal en persistencia
+                               "final_error_on_persist_stage"
                                ]:
                 all_successful = False
-
-            # Si el ítem llega a estado 'persisted', es un éxito.
-            # all_successful se define por la presencia de CUALQUIER fallo.
 
             results_for_api.append(
                 ItemAPIOutput(
@@ -112,7 +93,7 @@ async def generate_items(request: GenerationRequest):
                     warnings=item.warnings,
                     audits=item.audits,
                     token_usage=item.token_usage,
-                    db_id=item.item_id # Asignar el db_id si existe
+                    db_id=item.item_id
                 )
             )
 

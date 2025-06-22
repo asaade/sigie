@@ -1,46 +1,28 @@
 # app/pipelines/utils/stage_helpers.py
 
 import logging
-from typing import List, Any, Optional, Type
-from pydantic import BaseModel
+from typing import List, Optional
+from uuid import UUID, uuid4 # Necesario para UUIDs en handle_item_id_mismatch_refinement y AuditEntrySchema
 
 from app.schemas.models import Item
-from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema
+from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema, RecursoVisualSchema
 
 logger = logging.getLogger(__name__)
 
+# --- Simplified: only checks for the ultimate fatal error ---
 def skip_if_terminal_error(item: Item, stage_name: str) -> bool:
     """
-    Verifica si un ítem ya está en un estado de error terminal y, si es así,
+    Verifica si un ítem ya está en un estado fatal y, si es así,
     añade una entrada de auditoría y retorna True (indica que debe ser saltado).
+    Los estados de agotamiento de intentos son gestionados por el runner.
     """
-    terminal_statuses = [
-        "fatal_error",
-        "generation_failed",
-        "llm_generation_failed",
-        "generation_validation_failed",
-        "generation_failed_mismatch",
-        "failed_hard_validation",
-        "failed_logic_validation_after_retries",
-        "failed_policy_validation_after_retries",
-        "refinement_failed",
-        "refinement_parsing_failed",
-        "refinement_unexpected_error",
-        "final_failed_validation",
-        "llm_finalization_failed",
-        "finalization_failed_no_result",
-        "finalization_failed_mismatch",
-        "persistence_failed_db_error",
-        "persistence_failed_unexpected_error",
-        "fatal_error_on_persist_stage"
-    ]
-    if item.status in terminal_statuses:
+    if item.status == "fatal_error": # Only check for the most generic fatal state
         add_audit_entry(
             item=item,
             stage_name=stage_name,
-            summary=f"Saltado: ítem ya en estado de error terminal previo ({item.status})."
+            summary=f"Saltado: ítem ya en estado fatal ('{item.status}')."
         )
-        logger.debug(f"Skipping item {item.temp_id} in {stage_name} due to prior terminal error status: {item.status}")
+        logger.debug(f"Skipping item {item.temp_id} in {stage_name} due to prior fatal status.")
         return True
     return False
 
@@ -91,32 +73,8 @@ def handle_prompt_not_found_error(items: List[Item], stage_name: str, prompt_nam
     logger.error(error_msg)
     return items
 
-async def handle_llm_call_and_parse_errors(
-    item: Item, # Recibe un item para registrar los tokens y auditoría de la llamada
-    stage_name: str,
-    llm_errors_from_call_parse: List[ReportEntrySchema],
-    llm_fail_status: str,
-    summary_prefix: str
-) -> bool:
-    """
-    Maneja errores de llamada o parseo de la utilidad LLM.
-    Actualiza el estado del ítem, extiende errores y añade una auditoría.
-    Retorna True si hubo errores y el procesamiento debe continuar, False si no hay errores.
-    """
-    if llm_errors_from_call_parse:
-        # Si el ítem ya es fatal por prompt no encontrado (manejado por handle_prompt_not_found_error)
-        # no sobrescribimos el estado, solo extendemos los errores.
-        if item.status not in ["fatal_error"]:
-            item.status = llm_fail_status
-        item.errors.extend(llm_errors_from_call_parse)
-        add_audit_entry(
-            item=item,
-            stage_name=stage_name,
-            summary=f"{summary_prefix}. Errores: {', '.join([e.code for e in llm_errors_from_call_parse])}"
-        )
-        logger.error(f"LLM call or parsing failed for item {item.temp_id} in {stage_name}. Errors: {llm_errors_from_call_parse}")
-        return True
-    return False
+# --- Simplified: consolidate LLM call/parse errors into a single handler if needed ---
+# async def handle_llm_call_and_parse_errors(...) - REMOVED / CONSOLIDATED
 
 def handle_missing_payload(item: Item, stage_name: str, error_code: str, message: str, status: str, summary: str) -> None:
     """
@@ -147,7 +105,7 @@ def clean_item_llm_errors(item: Item) -> None:
             err.code.startswith("LLM_CALL_FAILED") or
             err.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
             err.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
-            err.code.startswith("NO_LLM_") # Códigos como NO_LLM_RESULT, NO_LLM_LOGIC_RESULT, NO_LLM_POLICY_RESULT
+            err.code.startswith("NO_LLM_")
         )
     ]
     item.warnings = [
@@ -186,99 +144,85 @@ def update_item_status_and_audit(
     )
     logger.info(f"Item {item.temp_id} in {stage_name} status updated to: {item.status}. Summary: {summary_msg}")
 
-def check_and_handle_batch_llm_errors(
-    items: List[Item],
-    stage_name: str,
-    llm_errors_from_call_parse: List[ReportEntrySchema],
-    summary_prefix: str,
-    llm_fail_status: str
-) -> bool:
-    """
-    Gestiona errores que afectan a todo el lote de ítems procesado por una llamada LLM.
-    Propaga los errores y auditorías a cada ítem del lote.
-    Retorna True si hubo errores de lote que deben detener el procesamiento adicional.
-    """
-    if llm_errors_from_call_parse:
-        for item in items:
-            if item.status not in ["fatal_error"]: # No sobrescribir errores fatales pre-existentes (ej. prompt no encontrado)
-                item.status = llm_fail_status # Ejemplo: "generation_failed"
-                item.errors.extend(llm_errors_from_call_parse)
-                add_audit_entry(
-                    item=item,
-                    stage_name=stage_name,
-                    summary=f"{summary_prefix}. Detalles: {llm_errors_from_call_parse[0].message[:200]}"
-                )
-        logger.error(f"Batch LLM processing failed for stage '{stage_name}'. Errors: {llm_errors_from_call_parse}")
-        return True
-    return False
+# --- Simplified: consolidate batch error handlers ---
+# def check_and_handle_batch_llm_errors(...) - REMOVED / CONSOLIDATED
+# def check_and_handle_llm_response_format_error(...) - REMOVED / CONSOLIDATED
+# def check_and_handle_llm_item_count_mismatch(...) - REMOVED / CONSOLIDATED
 
-def check_and_handle_llm_response_format_error(
-    items: List[Item],
+def handle_item_id_mismatch_refinement(
+    item: Item,
     stage_name: str,
-    generated_payloads_list_raw: Any,
-    expected_type: Type[List[BaseModel]],
-    error_code: str,
-    message: str,
-    llm_fail_status: str
-) -> bool:
+    expected_id: UUID,
+    received_id: UUID,
+    status_on_fail: str,
+    summary_msg: str
+) -> None:
     """
-    Verifica si la respuesta global del LLM es del tipo esperado (ej., una lista de ítems)
-    y maneja el error si no lo es.
-    Retorna True si hubo un error de formato, False en caso contrario.
+    Maneja el error de item_id no coincidente en la respuesta de refinamiento del LLM.
     """
-    if not isinstance(generated_payloads_list_raw, expected_type):
-        error_msg = message
-        for item in items:
-            if item.status not in ["fatal_error"]:
-                item.status = llm_fail_status
-                item.errors.append(
-                    ReportEntrySchema(
-                        code=error_code,
-                        message=error_msg,
-                        field="llm_response",
-                        severity="error"
-                    )
-                )
-                add_audit_entry(
-                    item=item,
-                    stage_name=stage_name,
-                    summary=f"Fallo de formato de respuesta del LLM. Detalles: {error_msg}"
-                )
-        logger.error(error_msg)
-        return True
-    return False
+    error_msg = f"Mismatched item_id in LLM response. Expected {expected_id}, got {received_id}."
+    item.errors.append(
+        ReportEntrySchema(
+            code="ITEM_ID_MISMATCH_REFINEMENT",
+            message=error_msg,
+            field="item_id",
+            severity="error"
+        )
+    )
+    update_item_status_and_audit(
+        item=item,
+        stage_name=stage_name,
+        new_status=status_on_fail,
+        summary_msg=summary_msg
+    )
+    logger.error(f"Item ID mismatched for item {item.temp_id} in {stage_name}: {error_msg}")
 
-def check_and_handle_llm_item_count_mismatch(
-    items: List[Item],
-    stage_name: str,
-    generated_payloads_list_raw: List[BaseModel],
-    error_code: str,
-    message: str,
-    llm_fail_status: str
-) -> bool:
+def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]:
     """
-    Verifica si la cantidad de ítems generados por el LLM coincide con la cantidad solicitada
-    y maneja el error si no lo es.
-    Retorna True si hubo un error de conteo, False en caso contrario.
+    Inicializa una lista de objetos Item con payloads dummy pero válidos
+    basándose en los user_params.
     """
-    if len(generated_payloads_list_raw) != len(items):
-        error_msg = message
-        for item in items:
-            if item.status not in ["fatal_error"]:
-                item.status = llm_fail_status
-                item.errors.append(
-                    ReportEntrySchema(
-                        code=error_code,
-                        message=error_msg,
-                        field="llm_response",
-                        severity="error"
-                    )
-                )
-                add_audit_entry(
-                    item=item,
-                    stage_name=stage_name,
-                    summary=f"Conteo de ítems generado por LLM no coincide. Detalles: {error_msg}"
-                )
-        logger.error(error_msg)
-        return True
-    return False
+    items: List[Item] = []
+    # Asegúrate de que UserGenerateParams tiene todos los campos necesarios para MetadataSchema y el ItemPayloadSchema base
+    # (habilidad, referencia_curricular, contexto_regional, etc.)
+    for _ in range(user_params.n_items):
+        item_metadata = MetadataSchema(
+            idioma_item=user_params.idioma_item,
+            area=user_params.area,
+            asignatura=user_params.asignatura,
+            tema=user_params.tema,
+            contexto_regional=user_params.contexto_regional,
+            nivel_destinatario=user_params.nivel_destinatario,
+            nivel_cognitivo=user_params.nivel_cognitivo,
+            dificultad_prevista=user_params.dificultad_prevista,
+            parametro_irt_b=user_params.parametro_irt_b,
+            referencia_curricular=user_params.referencia_curricular,
+            habilidad_evaluable=user_params.habilidad,
+        )
+
+        recurso_visual_obj = None
+        if user_params.recurso_visual:
+            try:
+                recurso_visual_obj = RecursoVisualSchema.model_validate(user_params.recurso_visual)
+            except Exception as e:
+                logger.warning(f"Error validating recurso_visual from user_params during item initialization: {e}. Setting to None.")
+
+        dummy_payload = ItemPayloadSchema(
+            item_id=uuid4(),
+            metadata=item_metadata,
+            enunciado_pregunta="Pregunta inicial (será reemplazada por el LLM)",
+            opciones=[
+                OpcionSchema(id="a", texto="Opción A", es_correcta=True, justificacion="Justificación A"),
+                OpcionSchema(id="b", texto="Opción B", es_correcta=False, justificacion="Justificación B"),
+                OpcionSchema(id="c", texto="Opción C", es_correcta=False, justificacion="Justificación C"),
+            ],
+            respuesta_correcta_id="a",
+            tipo_reactivo=user_params.tipo_reactivo,
+            fragmento_contexto=user_params.fragmento_contexto,
+            recurso_visual=recurso_visual_obj,
+            estimulo_compartido=user_params.estimulo_compartido,
+            testlet_id=user_params.testlet_id,
+        )
+
+        items.append(Item(payload=dummy_payload))
+    return items

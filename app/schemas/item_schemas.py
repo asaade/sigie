@@ -124,15 +124,18 @@ class UserGenerateParams(BaseModel):
     tema: str
     nivel_destinatario: str
     nivel_cognitivo: Literal["recordar", "comprender", "aplicar", "analizar", "evaluar", "crear"]
-    dificultad_prevista: Literal["facil", "media", "dificil"]
+    dificultad_prevista: Literal["facil", "media", "dificil"] # Asegúrate de que los valores sean en minúsculas
     tipo_generacion: Literal["item", "testlet"] = "item"
-    tipo_reactivo: TipoReactivo = Field(TipoReactivo.OPCION_MULTIPLE) # Default a un tipo específico
+    tipo_reactivo: TipoReactivo = Field(TipoReactivo.OPCION_MULTIPLE)
     habilidad: Optional[str] = None
     referencia_curricular: Optional[str] = None
-    recurso_visual: Optional[Dict[str, Any]] = None
+    recurso_visual: Optional[Dict[str, Any]] = None # Nota: este es para la entrada de parámetros, no el esquema completo de RecursoVisualSchema
     estimulo_compartido: Optional[str] = None
     testlet_id: Optional[UUID] = None
     especificaciones_por_item: Optional[List[Dict[str, Any]]] = None
+    parametro_irt_b: Optional[float] = None
+    contexto_regional: Optional[str] = None
+    fragmento_contexto: Optional[str] = None
 
     class Config:
         extra = "forbid"

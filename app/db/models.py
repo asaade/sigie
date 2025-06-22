@@ -1,46 +1,28 @@
-# app/schemas/models.py
+# app/db/models.py
+from sqlalchemy import Column, String, Integer, TIMESTAMP, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
 
-from dataclasses import dataclass, field
-from uuid import UUID, uuid4
-from typing import List, Optional, Dict, Any
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
 
-from app.schemas.item_schemas import ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema
+Base = declarative_base()
 
-@dataclass(slots=True)
-class Item:
-    """Ítem en memoria mientras recorre el pipeline."""
+class ItemModel(Base):
+    __tablename__ = 'items'
 
-    payload: ItemPayloadSchema
-
-    # Metadatos de tracking
-    temp_id: UUID = field(default_factory=uuid4)
-    item_id: Optional[UUID] = None # Asignado por la BD al persistir
-    status: str = "pending"
-    errors: List[ReportEntrySchema] = field(default_factory=list)
-    warnings: List[ReportEntrySchema] = field(default_factory=list)
-    audits: List[AuditEntrySchema] = field(default_factory=list)
-    prompt_v: Optional[str] = None
-    token_usage: Optional[int] = None
-
-    @classmethod
-    def from_payload(cls, payload: ItemPayloadSchema) -> "Item":
-        return cls(payload=payload)
-
-    @classmethod
-    def parse_json(cls, raw_json: str) -> "Item":
-        payload = ItemPayloadSchema.model_validate_json(raw_json)
-        return cls.from_payload(payload)
-
-    def to_orm(self) -> Dict[str, Any]:
-        """Convierte el objeto Item a un diccionario compatible con el ORM para persistir."""
-        return {
-            "id": self.item_id, # Será el ID de la BD si ya está persistido
-            "temp_id": str(self.temp_id), # UUID a string para DB
-            "status": self.status,
-            "payload": self.payload.model_dump(mode="json"), # Serializa el payload a JSON string
-            "errors": [error.model_dump() for error in self.errors],
-            "warnings": [warning.model_dump() for warning in self.warnings],
-            "audits": [audit.model_dump() for audit in self.audits],
-            "prompt_v": self.prompt_v,
-            "token_usage": self.token_usage,
-        }
+    id = Column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text('gen_random_uuid()'),
+        nullable=False
+    )
+    temp_id = Column(PGUUID(as_uuid=True), nullable=False, server_default=text('gen_random_uuid()'))
+    status = Column(String, nullable=False, default='pending')
+    payload = Column(JSONB, nullable=False)
+    errors = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    warnings = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    audits = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb")) # ¡Añadido!
+    prompt_v = Column(String, nullable=True)
+    token_usage = Column(Integer, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
