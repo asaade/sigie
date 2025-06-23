@@ -100,8 +100,14 @@ def clean_item_llm_errors(item: Item) -> None:
     ]
 
 def clean_specific_errors(item: Item, fixed_codes: set) -> None:
-    item.errors = [err for err in item.errors if err.code not in fixed_codes]
-    item.warnings = [warn for warn in item.warnings if warn.code not in fixed_codes]
+    """
+    Limpia los hallazgos (findings) de un ítem cuyos códigos han sido corregidos.
+    """
+    # ▼▼▼ LÓGICA MODIFICADA PARA USAR 'findings' ▼▼▼
+    original_count = len(item.findings)
+    item.findings = [f for f in item.findings if f.code not in fixed_codes]
+    if original_count > len(item.findings):
+        logger.debug(f"Removed {original_count - len(item.findings)} fixed findings for item {item.temp_id}.")
 
 def update_item_status_and_audit(
     item: Item,

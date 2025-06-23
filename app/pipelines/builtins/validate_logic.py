@@ -1,4 +1,4 @@
-# Archivo actualizado: app/pipelines/builtins/validate_logic.py
+# app/pipelines/builtins/validate_logic.py
 
 from __future__ import annotations
 from typing import Type
@@ -43,9 +43,8 @@ class ValidateLogicStage(LLMStage):
             # para actualizar el estado a 'validate_logic.success' y auditar.
             self._set_status(item, "success", "Logic validation passed.")
         else:
-            # El ítem falló la validación. Añadimos los hallazgos a los errores
-            # del ítem y usamos el helper para actualizar el estado a 'validate_logic.fail'.
-            # La política indica que los fallos de lógica son errores.
-            item.errors.extend(result.findings)
+            # El ítem falló la validación. Añadimos los hallazgos a la lista
+            # unificada 'findings' del ítem.
+            item.findings.extend(result.findings)
             summary = f"Logic validation failed. {len(result.findings)} issues found."
             self._set_status(item, "fail", summary)

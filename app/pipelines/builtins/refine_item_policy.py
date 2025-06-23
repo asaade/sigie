@@ -1,4 +1,4 @@
-# Archivo actualizado: app/pipelines/builtins/refine_item_policy.py
+# app/pipelines/builtins/refine_item_policy.py
 
 from __future__ import annotations
 import json
@@ -14,14 +14,12 @@ from ..utils.stage_helpers import clean_specific_errors, handle_item_id_mismatch
 @register("refine_item_policy")
 class RefinePolicyStage(LLMStage):
     """
-    Etapa de refinamiento que corrige un ítem basándose en las advertencias
-    (warnings) de políticas detectadas en la etapa de validación anterior.
+    Etapa de refinamiento que corrige un ítem basándose en los hallazgos
+    de políticas (con severidad 'warning') detectados previamente.
     """
 
     def _get_expected_schema(self) -> Type[BaseModel]:
-        """
-        Espera recibir un payload de ítem refinado del LLM.
-        """
+        """Espera recibir un payload de ítem refinado del LLM."""
         return RefinementResultSchema
 
     def _prepare_llm_input(self, item: Item) -> str:
@@ -29,8 +27,8 @@ class RefinePolicyStage(LLMStage):
         Prepara el input para el LLM. Envía el ítem junto con la lista
         de advertencias de políticas que el LLM debe solucionar.
         """
-        # La lógica de negocio clave: lee desde item.warnings
-        policy_warnings_to_fix = [w for w in item.warnings]
+        # ▼▼▼ CAMBIO PRINCIPAL AQUÍ: Leemos desde 'item.findings' ▼▼▼
+        policy_warnings_to_fix = [f for f in item.findings if f.severity == 'warning']
 
         input_payload = {
             "item": item.payload.model_dump(),
@@ -43,7 +41,6 @@ class RefinePolicyStage(LLMStage):
         Procesa el resultado, reemplazando el payload del ítem y limpiando
         las advertencias que fueron corregidas.
         """
-        # Verificación de seguridad
         if result.item_id != item.payload.item_id:
             handle_item_id_mismatch_refinement(
                 item, self.stage_name, item.payload.item_id, result.item_id,
@@ -52,14 +49,11 @@ class RefinePolicyStage(LLMStage):
             )
             return
 
-        # Aplica la corrección
         item.payload = result.item_refinado
 
-        # Limpia las advertencias específicas que el LLM reporta haber corregido.
-        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas}
+        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas if correction.error_code}
         if fixed_codes:
-            # Reutilizamos el mismo helper, que funciona tanto para errores como para advertencias
-            clean_specific_errors(item, fixed_codes)
+            clean_specific_errors(item, fixed_codes) # Este helper ya opera sobre 'item.findings'
 
         summary = f"Policy refinement applied. {len(fixed_codes)} issues reported as fixed."
         self._set_status(item, "success", summary)

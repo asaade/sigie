@@ -1,4 +1,4 @@
-# Archivo actualizado: app/pipelines/builtins/finalize_item.py
+# app/pipelines/builtins/finalize_item.py
 
 from __future__ import annotations
 from typing import Type

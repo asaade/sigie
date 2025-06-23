@@ -60,7 +60,7 @@ Devuelve el resultado en formato JSON y registra cada edición aplicada con:
 {
   "item_id": "UUID",
   "item_refinado": { ... },
-  "cambios_estilo": [
+  "correcciones_realizadas": [
     {
       "field": "opciones[2].texto",
       "original": "Tiene 3 lados",

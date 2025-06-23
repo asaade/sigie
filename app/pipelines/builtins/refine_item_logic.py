@@ -1,4 +1,4 @@
-# Archivo actualizado: app/pipelines/builtins/refine_item_logic.py
+# app/pipelines/builtins/refine_item_logic.py
 
 from __future__ import annotations
 import json
@@ -7,15 +7,15 @@ from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item
-from app.schemas.item_schemas import RefinementResultSchema
+from app.schemas.item_schemas import RefinementResultSchema, ReportEntrySchema
 from app.pipelines.abstractions import LLMStage
 from ..utils.stage_helpers import clean_specific_errors, handle_item_id_mismatch_refinement
 
 @register("refine_item_logic")
 class RefineLogicStage(LLMStage):
     """
-    Etapa de refinamiento lógico que corrige ítems basándose en los errores
-    detectados por una etapa de validación previa.
+    Etapa de refinamiento lógico que corrige ítems basándose en los hallazgos
+    (findings) detectados por una etapa de validación previa.
     """
 
     def _get_expected_schema(self) -> Type[BaseModel]:
@@ -27,11 +27,11 @@ class RefineLogicStage(LLMStage):
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
-        Prepara el input para el LLM. Es crucial enviar no solo el ítem,
-        sino también la lista de problemas que el LLM debe solucionar.
+        Prepara el input para el LLM. Envía el ítem junto con la lista de
+        problemas (filtrando solo los de severidad 'error') que el LLM debe solucionar.
         """
-        # Filtramos para enviar solo los errores, no las advertencias.
-        logic_errors_to_fix = [err for err in item.errors if err.severity == 'error']
+        # ▼▼▼ CAMBIO PRINCIPAL AQUÍ: Leemos desde 'item.findings' ▼▼▼
+        logic_errors_to_fix = [f for f in item.findings if f.severity == 'error']
 
         input_payload = {
             "item": item.payload.model_dump(),
@@ -57,8 +57,9 @@ class RefineLogicStage(LLMStage):
         item.payload = result.item_refinado
 
         # Limpiar los errores específicos que el LLM reporta haber corregido.
-        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas}
-        clean_specific_errors(item, fixed_codes)
+        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas if correction.error_code}
+        if fixed_codes:
+            clean_specific_errors(item, fixed_codes) # Ahora usa la versión actualizada del helper
 
         summary = f"Refinement applied. {len(fixed_codes)} issues reported as fixed."
         self._set_status(item, "success", summary)

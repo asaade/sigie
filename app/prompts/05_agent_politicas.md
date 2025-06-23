@@ -23,19 +23,20 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
 
 ```json
 {
-  "item_id": "UUID del ítem evaluado",
-  "policy_ok": true|false,
-  "warnings": [
+  "is_valid": true,
+  "findings": [
     {
-      "warning_code": "W_...",
-      "message": "Descripción clara y precisa de la advertencia"
+      "code": "W_SESGO_GENERO",
+      "message": "El enunciado utiliza un pronombre con sesgo de género que puede ser neutralizado.",
+      "field": "enunciado_pregunta",
+      "severity": "warning"
     }
   ]
 }
 ```
 
-* Si `policy_ok` es `true`, `warnings` debe estar vacío.
-* Si `policy_ok` es `false`, se debe listar cada advertencia relevante con su código correspondiente.
+* Si `is_valid` es `true`, `findings` debe estar vacío.
+* Si `is_valid` es `false`, se debe listar cada hallazgo relevante, usando la clave "code" y asegurando que cada objeto incluya el campo "severity" ("warning" o "error" según corresponda del catálogo).
 
 ---
 

@@ -39,7 +39,6 @@ class MetadataSchema(BaseModel):
     nivel_cognitivo: Literal["recordar", "comprender", "aplicar", "analizar", "evaluar", "crear"]
     dificultad_prevista: Literal["facil", "media", "dificil"]
     fecha_creacion: date = Field(default_factory=date.today)
-    parametro_irt_b: Optional[float] = None
     referencia_curricular: Optional[str] = None
     habilidad_evaluable: Optional[str] = None
 
@@ -117,7 +116,7 @@ class AuditEntrySchema(BaseModel):
         frozen = True
 
 class UserGenerateParams(BaseModel):
-    n_items: int = Field(1, ge=1, le=5)
+    n_items: int = Field(1, ge=1, le=5, alias="n_items", description="Número de ítems a generar.")
     idioma_item: str = "es"
     area: str
     asignatura: str
@@ -143,6 +142,7 @@ class UserGenerateParams(BaseModel):
 class ValidationResultSchema(BaseModel):
     """
     Esquema UNIFICADO para la respuesta de CUALQUIER agente validador.
+    (Esta estructura ya es correcta y usa 'findings').
     """
     is_valid: bool = Field(..., description="Veredicto final de la validación. True si pasa, False si falla.")
     findings: List[ReportEntrySchema] = Field(
@@ -166,7 +166,11 @@ class FinalizationResultSchema(BaseModel):
     final_check_ok: bool
     item_final: Optional[ItemPayloadSchema] = None
     correcciones_finales: List[CorrectionEntrySchema] = Field(default_factory=list)
-    final_warnings: List[ReportEntrySchema] = Field(default_factory=list)
+
+    final_findings: List[ReportEntrySchema] = Field(
+        default_factory=list,
+        description="Lista unificada de hallazgos finales (advertencias o errores menores)."
+    )
     observaciones_finales: Optional[str] = None
 
     class Config:
@@ -179,3 +183,8 @@ class FinalEvaluationSchema(BaseModel):
     is_publishable: bool = Field(..., description="Veredicto final sobre si el ítem está listo para ser publicado.")
     score: float = Field(..., ge=0, le=10, description="Una puntuación numérica de la calidad general del ítem (0-10).")
     justification: str = Field(..., description="Un resumen cualitativo que justifica la puntuación y el veredicto.")
+
+class GenerationResponse(BaseModel):
+    success: bool
+    total_tokens_used: int
+    results: List[Item]

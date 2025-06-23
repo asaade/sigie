@@ -35,7 +35,6 @@ def save_items(db: Session, items: List[pydantic_models.Item]) -> List[db_models
             token_usage=item_schema.token_usage,
             payload=item_schema.payload.model_dump() if item_schema.payload else None,
             final_evaluation=item_schema.final_evaluation.model_dump() if item_schema.final_evaluation else None,
-            errors=[e.model_dump() for e in item_schema.errors],
             warnings=[w.model_dump() for w in item_schema.warnings],
             audit_trail=[a.model_dump() for a in item_schema.audits]
         )

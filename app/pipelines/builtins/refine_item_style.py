@@ -1,4 +1,4 @@
-# Archivo actualizado: app/pipelines/builtins/refine_item_style.py
+# app/pipelines/builtins/refine_item_style.py
 
 from __future__ import annotations
 import json

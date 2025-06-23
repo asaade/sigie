@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 from typing import List, Optional, Dict, Any
 
+# Aseguramos que los schemas necesarios están importados
 from app.schemas.item_schemas import BaseModel, ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema, FinalEvaluationSchema
 
 @dataclass(slots=True)
@@ -14,10 +15,13 @@ class Item(BaseModel):
 
     # Metadatos de tracking
     temp_id: UUID = field(default_factory=uuid4)
-    item_id: Optional[UUID] = None # Asignado por la BD al persistir
+    item_id: Optional[UUID] = None
     status: str = "pending"
-    errors: List[ReportEntrySchema] = field(default_factory=list)
-    warnings: List[ReportEntrySchema] = field(default_factory=list)
+
+    # ▼▼▼ CAMPOS UNIFICADOS ▼▼▼
+    # Se eliminan 'errors' y 'warnings'
+    findings: List[ReportEntrySchema] = field(default_factory=list, description="Lista unificada de todos los hallazgos (errores y advertencias).")
+
     audits: List[AuditEntrySchema] = field(default_factory=list)
     prompt_v: Optional[str] = None
     token_usage: Optional[int] = None
@@ -35,12 +39,14 @@ class Item(BaseModel):
     def to_orm(self) -> Dict[str, Any]:
         """Convierte el objeto Item a un diccionario compatible con el ORM para persistir."""
         return {
-            "id": self.item_id, # Será el ID de la BD si ya está persistido
-            "temp_id": str(self.temp_id), # UUID a string para DB
+            "id": self.item_id,
+            "temp_id": str(self.temp_id),
             "status": self.status,
-            "payload": self.payload.model_dump(mode="json"), # Serializa el payload a JSON string
-            "errors": [error.model_dump() for error in self.errors],
-            "warnings": [warning.model_dump() for warning in self.warnings],
+            "payload": self.payload.model_dump(mode="json"),
+
+            # ▼▼▼ LÓGICA DE CONVERSIÓN ACTUALIZADA ▼▼▼
+            "findings": [finding.model_dump() for finding in self.findings],
+
             "audits": [audit.model_dump() for audit in self.audits],
             "prompt_v": self.prompt_v,
             "token_usage": self.token_usage,

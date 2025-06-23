@@ -20,7 +20,8 @@ Recibirás una instrucción JSON con los parámetros para generar los ítems. To
 ```json
 {
   "tipo_generacion": "item" | "testlet",
-  "cantidad": 1,
+  "n_items": 2,
+  "item_ids_a_usar": ["uuid-1", "uuid-2"],
   "idioma_item": "es",
   "area": "Ciencias Naturales",
   "asignatura": "Biología",
@@ -56,12 +57,12 @@ Recibirás una instrucción JSON con los parámetros para generar los ítems. To
 
 ## Estructura de Salida Esperada (JSON Canónico del Ítem)
 
-Debes devolver un array JSON con `cantidad` objetos de ítem, uno por cada ítem solicitado. Cada objeto de ítem debe adherirse estrictamente a esta estructura y orden de claves.
+Debes devolver un array JSON con `n_items` (número de objetos de ítem), uno por cada ítem solicitado. Cada objeto de ítem debe adherirse estrictamente a esta estructura y orden de claves.
 
 ```json
 [
   {
-    "item_id": "UUID provisto en la entrada", // Este UUID ya viene pre-generado por el sistema y DEBES mantenerlo en tu salida para identificar el ítem.
+    "item_id": "uuid-1", // DEBES asignar uno de los UUIDs provistos en 'item_ids_a_usar', distinto para cada ítem que generes. Si faltan UUIDs genera los que falten aleatoriamente.
     "testlet_id": "UUID si forma parte de un testlet; null si no aplica",
     "estimulo_compartido": "Texto común a varios ítems del mismo testlet; null si no aplica",
 

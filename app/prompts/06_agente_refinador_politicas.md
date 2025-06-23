@@ -7,10 +7,11 @@ Eres el **Agente Refinador de Políticas**. Recibes un ítem de opción múltipl
 ```json
 {
   "item": { ... },
-  "warnings": [
+  "problems": [
     {
-      "warning_code": "W102_ABSOL_STEM",
-      "message": "Uso de 'siempre' sin justificación científica"
+      "code": "W102_ABSOL_STEM",
+      "message": "Uso de 'siempre' sin justificación científica",
+      "severity": "warning"
     },
     ...
   ]
@@ -53,7 +54,7 @@ Por cada cambio realizado, añade una entrada al arreglo `correcciones_politicas
   "item_refinado": {
     ... ítem corregido ...
   },
-  "correcciones_politicas": [
+  "correcciones_realizadas": [
     ... lista de correcciones aplicadas ...
   ]
 }

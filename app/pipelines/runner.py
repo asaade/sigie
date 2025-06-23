@@ -1,4 +1,4 @@
-# Archivo actualizado: app/pipelines/runner.py
+# app/pipelines/runner.py
 
 import logging
 import inspect  # Necesario para verificar si un objeto es una clase

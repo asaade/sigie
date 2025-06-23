@@ -1,66 +1,49 @@
-# Archivo final: pipeline.yml
+# pipeline.yml (Versión Final)
+# Define el flujo de ejecución lineal para el sistema SIGIE.
 
-version: 4.0 # Marcamos una nueva versión mayor de la estructura
 stages:
+  # 1. Etapa de creación inicial de ítems
   - name: generate_items
-    # Esta etapa tiene una lógica única y no usa el motor genérico.
-    # El runner la llamará directamente por su nombre.
+    params:
+      prompt: "01_agent_dominio.md"
+      # Se pueden añadir aquí params de LLM específicos para esta etapa
+      # model: "gpt-4-turbo"
 
+  # 2. Validación programática de reglas duras
   - name: validate_hard
-    # Esta etapa no usa LLM y tiene su propia lógica.
 
+  # 3. Ciclo de validación y refinamiento lógico
   - name: validate_logic
-    processor: llm_engine  # Indica al runner que use nuestro motor universal
     params:
       prompt: "02_agent_razonamiento.md"
-      prepare_logic: "validation"
-      apply_logic: "validation"
-      schema_logic: "validation"
-      store_findings_in: "errors" # Los fallos de lógica se consideran errores
-
   - name: refine_item_logic
-    processor: llm_engine
     params:
       prompt: "03_agente_refinador_razonamiento.md"
-      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
-      prepare_logic: "refinement"
-      apply_logic: "refinement"
-      schema_logic: "refinement"
+      # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
+      listen_to_status: "validate_logic.fail"
 
+  # 4. Etapa de corrección de estilo directa
   - name: correct_item_style
-    processor: llm_engine
     params:
       prompt: "04_agente_refinador_estilo.md"
-      # No hay 'listen_to_status', por lo que se aplica a todos los ítems listos
-      prepare_logic: "correction" # Usa el preparador que no envía problemas previos
-      apply_logic: "refinement"   # Reutiliza el aplicador que reemplaza el payload
-      schema_logic: "refinement"  # Espera el mismo formato de salida que un refinamiento
 
+  # 5. Ciclo de validación y refinamiento de políticas
   - name: validate_policy
-    processor: llm_engine
     params:
       prompt: "05_agent_politicas.md"
-      prepare_logic: "validation"
-      apply_logic: "validation"
-      schema_logic: "validation"
-      store_findings_in: "warnings" # Los fallos de política son advertencias
-
   - name: refine_item_policy
-    processor: llm_engine
     params:
       prompt: "06_agente_refinador_politicas.md"
-      listen_to_status_pattern: ".fail"
-      prepare_logic: "refinement"
-      apply_logic: "refinement"
-      schema_logic: "refinement"
+      listen_to_status: "validate_policy.fail"
 
+  # 6. Validación programática de reglas suaves (advertencias)
   - name: validate_soft
-    # Etapa no-LLM.
 
+  # 7. Etapa de evaluación final por un LLM
   - name: finalize_item
-    prompt: "07_agent_final.md"
-    # Esta etapa es candidata a ser integrada al motor en el futuro,
-    # pero por ahora la mantenemos con su propia lógica.
+    params:
+      prompt: "07_agent_final.md"
+      # model: "gpt-4" # Podríamos usar un modelo más potente para el juicio final
 
+  # 8. Persistencia final en la base de datos
   - name: persist
-    # Etapa final sin LLM.

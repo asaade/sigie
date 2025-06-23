@@ -42,23 +42,23 @@ Recibirás un objeto JSON generado por el Agente Dominio. Los campos clave son:
 
 ### Formato de salida
 
-Devuelve un objeto JSON con esta estructura:
+Devuelve exclusivamente un objeto JSON con esta estructura:
 
 ```json
 {
-  "item_id": "ID del ítem evaluado",
-  "logic_ok": true | false,
-  "errors": [
+  "is_valid": true,
+  "findings": [
     {
       "code": "E_...",
-      "message": "Descripción breve del problema"
+      "message": "Descripción breve del problema",
+      "field": "opciones[0].texto",
+      "severity": "error"
     }
   ]
 }
-```
 
-* Si `logic_ok` es `true`, la lista `errors` debe estar vacía.
-* Si `logic_ok` es `false`, incluye todos los errores detectados.
+- Si is_valid es true, la lista findings debe estar vacía.
+- Si is_valid es false, incluye en la lista findings todos los errores detectados, especificando la severity de cada uno.
 
 ### Códigos de error comunes
 
@@ -86,8 +86,8 @@ Devuelve un objeto JSON con esta estructura:
 ```json
 {
   "item_id": "abc-123",
-  "logic_ok": false,
-  "errors": [
+  "is_valid": false,
+  "findings": [
     {
       "code": "E_CALCULO_INCORRECTO",
       "message": "La opción correcta contiene un resultado equivocado (esperado: 45)"

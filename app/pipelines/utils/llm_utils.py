@@ -25,12 +25,7 @@ async def call_llm_and_parse_json_result(
     """
     Encapsula la llamada al LLM, el manejo de su respuesta, el parseo de JSON
     y la validación Pydantic, reportando errores y acumulando tokens.
-    Ahora también permite especificar el proveedor LLM por etapa.
-
-    Retorna:
-        - parsed_result: El objeto parseado (BaseModel o cualquier tipo del custom_parser_func) si es exitoso, None si falla.
-        - errors: Lista de ReportEntrySchema con errores detectados por la utilidad.
-        - raw_llm_text: El texto crudo completo de la respuesta del LLM.
+    Permite especificar el proveedor LLM por etapa.
     """
     current_errors: List[ReportEntrySchema] = []
     parsed_result: Optional[Any] = None
@@ -38,9 +33,8 @@ async def call_llm_and_parse_json_result(
 
     llm_params = ctx.get("params", {}).get(stage_name, {})
 
-    # --- Añadido: Obtener el proveedor específico para esta etapa ---
+    # Obtiene el proveedor específico para esta etapa del pipeline.yml
     provider = llm_params.get("provider")
-    # ----------------------------------------------------------------
 
     model = llm_params.get("model")
     temperature = llm_params.get("temperature", 0.7)
@@ -68,7 +62,7 @@ async def call_llm_and_parse_json_result(
 
     resp: LLMResponse = await generate_response(
         messages=messages,
-        provider=provider, # --- Añadido: Pasamos el proveedor específico de la etapa ---
+        provider=provider, # Pasa el proveedor específico a la capa de servicio LLM
         model=model,
         temperature=temperature,
         max_tokens=max_tokens
@@ -101,10 +95,8 @@ async def call_llm_and_parse_json_result(
             error_msg = f"Unexpected error during custom parsing for stage '{stage_name}': {e}. Raw: {raw_llm_text[:500]}"
             current_errors.append(
                 ReportEntrySchema(
-                    code="UNEXPECTED_CUSTOM_PARSE_ERROR",
-                    message=error_msg,
-                    field="llm_response_custom_parse",
-                    severity="error"
+                    code="UNEXPECTED_CUSTOM_PARSE_ERROR", message=error_msg,
+                    field="llm_response_custom_parse", severity="error"
                 )
             )
             logger.error(error_msg)
@@ -118,10 +110,8 @@ async def call_llm_and_parse_json_result(
             error_msg = f"Failed to parse/validate LLM response for stage '{stage_name}': {e}. Raw: {raw_llm_text[:500]}"
             current_errors.append(
                 ReportEntrySchema(
-                    code="LLM_PARSE_VALIDATION_ERROR",
-                    message=error_msg,
-                    field="llm_response_json",
-                    severity="error"
+                    code="LLM_PARSE_VALIDATION_ERROR", message=error_msg,
+                    field="llm_response_json", severity="error"
                 )
             )
             logger.error(error_msg)
@@ -130,10 +120,8 @@ async def call_llm_and_parse_json_result(
             error_msg = f"Unexpected error during LLM response processing for stage '{stage_name}': {e}"
             current_errors.append(
                 ReportEntrySchema(
-                    code="UNEXPECTED_LLM_PROCESSING_ERROR",
-                    message=error_msg,
-                    field="llm_response",
-                    severity="error"
+                    code="UNEXPECTED_LLM_PROCESSING_ERROR", message=error_msg,
+                    field="llm_response", severity="error"
                 )
             )
             logger.error(error_msg)
