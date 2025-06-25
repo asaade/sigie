@@ -27,7 +27,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER set_timestamp
+CREATE OR REPLACE TRIGGER set_timestamp
 BEFORE UPDATE ON items
 FOR EACH ROW
 EXECUTE PROCEDURE trigger_set_timestamp();

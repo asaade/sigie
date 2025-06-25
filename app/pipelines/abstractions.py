@@ -1,4 +1,4 @@
-# Archivo nuevo: app/pipelines/abstractions.py
+# app/pipelines/abstractions.py
 
 import logging
 from abc import ABC, abstractmethod
@@ -12,11 +12,13 @@ from app.pipelines.utils.stage_helpers import (
     skip_if_terminal_error,
     handle_missing_payload
 )
-# La utilidad clave que usará nuestra abstracción
 from app.pipelines.utils.llm_utils import call_llm_and_parse_json_result
 from app.prompts import load_prompt
 
 logger = logging.getLogger(__name__)
+
+# Límite para el summary de auditoría (AuditEntrySchema.summary tiene 1000 caracteres)
+MAX_AUDIT_SUMMARY_LENGTH = 900 # Un poco menos que el límite del esquema para seguridad
 
 class BaseStage(ABC):
     """Clase base abstracta para cualquier etapa del pipeline."""
@@ -38,6 +40,9 @@ class BaseStage(ABC):
         """
         new_status = f"{self.stage_name}.{outcome}"
         final_summary = summary or f"Stage completed with outcome '{outcome}'."
+        # CRÍTICO: Truncar el summary antes de pasarlo a AuditEntrySchema
+        final_summary = final_summary[:MAX_AUDIT_SUMMARY_LENGTH]
+
         update_item_status_and_audit(item, self.stage_name, new_status, final_summary)
 
 
@@ -51,35 +56,37 @@ class LLMStage(BaseStage):
         self.prompt_name = self.params.get("prompt")
         if not self.prompt_name:
             raise ValueError(f"Stage '{self.stage_name}' requires a 'prompt' in its params.")
-        load_prompt(self.prompt_name) # Valida la existencia del prompt en la inicialización
+        # Valida la existencia del prompt en la inicialización para un fallo temprano
+        load_prompt(self.prompt_name)
 
     async def execute(self, items: List[Item]) -> List[Item]:
         """
-        Punto de entrada principal. Filtra ítems y ejecuta el procesamiento.
-        NUEVO: Ahora maneja 'listen_to_status' para etapas de refinamiento.
+        Punto de entrada principal. Filtra ítems no procesables y ejecuta
+        el procesamiento de los demás de forma concurrente.
         """
-        listen_status = self.params.get("listen_to_status")
+        listen_status = self.params.get("listen_to_status_pattern")
 
+        items_to_process = []
         if listen_status:
-            # Etapa de refinamiento: solo procesa ítems con el estado específico.
-            items_to_process = [item for item in items if item.status == listen_status]
-            self.logger.info(f"Found {len(items_to_process)} items with status '{listen_status}' to process.")
+            items_to_process = [item for item in items if item.status.endswith(listen_status)]
+            if items_to_process:
+                self.logger.info(f"Found {len(items_to_process)} items with status matching '{listen_status}' to process.")
         else:
-            # Etapa de validación/corrección: procesa todos los que no hayan fallado.
-            items_to_process = [item for item in items if not item.status.endswith(('.fail', '.error'))]
+            items_to_process = [item for item in items if item.status != "fatal_error" and not item.status.endswith((".fail", ".error"))]
 
-        tasks = [self._process_one_item(item) for item in items_to_process]
-        if tasks:
+        if items_to_process:
+            tasks = [self._process_one_item(item) for item in items_to_process]
             await asyncio.gather(*tasks)
+
         return items
 
     async def _process_one_item(self, item: Item):
         """Orquesta la lógica de procesamiento para un único ítem."""
-        if skip_if_terminal_error(item, self.stage_name):
+        if skip_if_terminal_error(item, self.stage_name): # skip_if_terminal_error ya añade auditoría
             return
 
         if not item.payload:
-            handle_missing_payload(
+            handle_missing_payload( # handle_missing_payload ya añade auditoría y findings
                 item, self.stage_name, "NO_PAYLOAD", "Item has no payload for processing.",
                 f"{self.stage_name}.fail.no_payload", "Skipped: No payload to process."
             )
@@ -96,19 +103,41 @@ class LLMStage(BaseStage):
                 item=item,
                 ctx=self.ctx,
                 expected_schema=schema,
+                **self.params
             )
 
             if llm_errors:
-                item.errors.extend(llm_errors)
-                self._set_status(item, "fail.utility_error", f"LLM util failed: {llm_errors[0].message}")
+                item.findings.extend(llm_errors) # Añadir los errores de utilidad a findings
+                error_summary = f"LLM utility failed: {llm_errors[0].message}"
+                self.logger.warning(f"For item {item.temp_id}, {error_summary}")
+                self._set_status(item, "fail.utility_error", error_summary)
             elif result:
                 await self._process_llm_result(item, result)
-            else:
-                self._set_status(item, "fail.no_result", "LLM did not return a valid result.")
+                self._clean_llm_findings_on_success(item) # Limpiar hallazgos LLM
+            else: # Si no hay errores y tampoco hay un resultado válido
+                summary = "LLM did not return a valid result. This strongly suggests the prompt's output format does not match the expected Pydantic schema."
+                self.logger.error(f"CRITICAL FAILURE for item {item.temp_id} in stage {self.stage_name}: {summary}")
+                self._set_status(item, "fail.no_result", summary)
 
-        except Exception as e:
+        except Exception as e: # Captura cualquier error inesperado en _prepare_llm_input o _process_llm_result
             self.logger.error(f"Unexpected error in stage {self.stage_name} for item {item.temp_id}: {e}", exc_info=True)
             self._set_status(item, "fail.unexpected_error", str(e))
+
+    # --- FUNCIÓN HELPER: LIMPIAR HALLAZGOS LLM DESPUÉS DE ÉXITO ---
+    def _clean_llm_findings_on_success(self, item: Item) -> None:
+        """
+        Limpia los hallazgos del ítem que son generados por fallos de la utilidad LLM/parseo,
+        una vez que el _process_llm_result de la etapa fue exitoso.
+        """
+        item.findings = [
+            f for f in item.findings
+            if not (
+                f.code.startswith("LLM_CALL_FAILED") or
+                f.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
+                f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
+                f.code.startswith("NO_LLM_")
+            )
+        ]
 
     # --- MÉTODOS ABSTRACTOS QUE LAS CLASES HIJAS DEBEN IMPLEMENTAR ---
 

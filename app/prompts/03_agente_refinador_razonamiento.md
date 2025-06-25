@@ -115,8 +115,6 @@ Devuelve un objeto JSON con esta estructura:
       "nivel_destinatario": "Media superior",
       "nivel_cognitivo": "aplicar",
       "dificultad_prevista": "Media",
-      "fecha_creacion": "2025-06-20",
-      "parametro_irt_b": null,
       "referencia_curricular": null,
       "habilidad_evaluable": null
     },

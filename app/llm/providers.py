@@ -67,21 +67,21 @@ class BaseLLMClient:
                 error_message=str(e)
             )
 
-    async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any for more flexibility
         raise NotImplementedError
 
     def _parse_response(self, provider_resp: Any) -> LLMResponse:
         raise NotImplementedError
 
-from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, AuthenticationError, InvalidAPIKeyError
+from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, AuthenticationError
 
 @register_provider("openai")
 class OpenAIClient(BaseLLMClient):
     @classmethod
     def retry_exceptions(cls):
-        return (RateLimitError, APIError, APITimeoutError, AuthenticationError, InvalidAPIKeyError)
+        return (RateLimitError, APIError, APITimeoutError, AuthenticationError)
 
-    async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
         client = AsyncOpenAI(
             base_url=self.settings.openai_base_url or None,
             api_key=self.settings.openai_api_key or None,
@@ -120,7 +120,7 @@ class OpenRouterClient(OpenAIClient):
             timeout=self.settings.llm_request_timeout
         )
 
-    async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
         params = {
             "model": kwargs.pop("model", self.settings.llm_model),
             "messages": messages,
@@ -132,7 +132,7 @@ class OpenRouterClient(OpenAIClient):
 
 from google import genai
 from google.genai import types
-from google.generativeai.types import GenerateContentResponse
+# from google.generativeai.types import GenerateContentResponse # NOT USED DIRECTLY
 from google.api_core.exceptions import ResourceExhausted, InternalServerError, Aborted, DeadlineExceeded, GoogleAPICallError
 
 @register_provider("gemini")
@@ -148,7 +148,7 @@ class GeminiClient(BaseLLMClient):
         if self.settings.gemini_base_url:
             self.logger.warning("gemini_base_url not directly supported by genai.Client() via api_endpoint in this way. Check new SDK docs.")
 
-    async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
         system_instruction_content = ""
         gemini_contents = []
         for msg in messages:
@@ -158,6 +158,7 @@ class GeminiClient(BaseLLMClient):
                 gemini_contents.append(msg["content"])
             elif msg["role"] == "model":
                 gemini_contents.append({"role": "model", "parts": [msg["content"]]})
+
 
         model_name = kwargs.pop("model", self.settings.llm_model)
 
@@ -179,7 +180,7 @@ class GeminiClient(BaseLLMClient):
              **kwargs
         )
 
-    def _parse_response(self, res: GenerateContentResponse) -> LLMResponse:
+    def _parse_response(self, res: Any) -> LLMResponse: # Changed type hint from GenerateContentResponse
         text_content = ""
         prompt_tokens = 0
         completion_tokens = 0
@@ -215,7 +216,7 @@ class OllamaClient(BaseLLMClient):
     def retry_exceptions(cls):
         return (ollama.ResponseError, ConnectionError, TimeoutError)
 
-    async def _call(self, messages: List[Dict[str, str]], kwargs: Dict[str, Any]) -> Any:
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
         host = self.settings.ollama_host
         client = ollama.AsyncClient(host=host)
 
@@ -231,7 +232,8 @@ class OllamaClient(BaseLLMClient):
         }
         chat_params.update(kwargs)
 
-        return await client.chat(**chat_params, timeout=self.settings.llm_request_timeout)
+        # CRÍTICO: Eliminado 'timeout' de aquí, ya que AsyncClient.chat() no lo acepta directamente
+        return await client.chat(**chat_params)
 
 
     def _parse_response(self, res: Any) -> LLMResponse:
@@ -250,7 +252,7 @@ class OllamaClient(BaseLLMClient):
         )
 
 async def generate_response(
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, Any]], # Type hint messages changed to Any
     model: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,

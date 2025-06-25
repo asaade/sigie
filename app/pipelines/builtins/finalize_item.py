@@ -1,8 +1,9 @@
 # app/pipelines/builtins/finalize_item.py
 
 from __future__ import annotations
+# Eliminado import logging
 from typing import Type
-from pydantic import BaseModel
+from pydantic import BaseModel # Necesario para Type[BaseModel]
 
 from ..registry import register
 from app.schemas.models import Item
@@ -14,11 +15,12 @@ class FinalizeItemStage(LLMStage):
     """
     Etapa final de evaluación cualitativa de un ítem.
     Un LLM emite un juicio final sobre la calidad del ítem sin modificarlo.
+    Implementada como una clase Stage.
     """
 
     def _get_expected_schema(self) -> Type[BaseModel]:
         """
-        Espera recibir un objeto con la evaluación final del ítem.
+        Define el esquema que se espera de la respuesta del LLM para esta etapa.
         """
         return FinalEvaluationSchema
 
@@ -32,7 +34,7 @@ class FinalizeItemStage(LLMStage):
     async def _process_llm_result(self, item: Item, result: FinalEvaluationSchema):
         """
         Procesa el resultado de la evaluación, adjuntándolo al ítem y
-        actualizando el estado a 'finalized'.
+        actualizando el estado.
         """
         # Adjunta la evaluación completa al objeto Item.
         item.final_evaluation = result

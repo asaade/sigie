@@ -1,49 +1,84 @@
-# pipeline.yml (Versión Final)
+# pipeline.yml
 # Define el flujo de ejecución lineal para el sistema SIGIE.
+# Las etapas se ejecutan en el orden listado.
 
 stages:
   # 1. Etapa de creación inicial de ítems
-  - name: generate_items
+  - name: generate_items # Nombre de la clase GenerateItemsStage
     params:
       prompt: "01_agent_dominio.md"
-      # Se pueden añadir aquí params de LLM específicos para esta etapa
-      # model: "gpt-4-turbo"
+      provider: openai # Ejemplo: Usar OpenAI para la generación
+      model: gpt-4o-mini # Ejemplo de modelo
+      temperature: 0.7
+      max_tokens: 3000
 
   # 2. Validación programática de reglas duras
-  - name: validate_hard
+  - name: validate_hard # Nombre de la clase ValidateHardStage
+    # Esta etapa no usa LLM directamente, su lógica es programática.
+    # Los errores (fail) detendrán el procesamiento de ese ítem en etapas posteriores.
 
   # 3. Ciclo de validación y refinamiento lógico
-  - name: validate_logic
+  - name: validate_logic # Nombre de la clase ValidateLogicStage (Validador)
     params:
       prompt: "02_agent_razonamiento.md"
-  - name: refine_item_logic
+      provider: gemini # Ejemplo: Usar Gemini para validación lógica
+      model: gemini-1.5-pro
+      temperature: 0.1 # Baja temperatura para precisión en validación
+      max_tokens: 1500
+
+  - name: refine_item_logic # Nombre de la clase RefineLogicStage (Refinador)
     params:
       prompt: "03_agente_refinador_razonamiento.md"
+      provider: gemini # Mismo proveedor que el validador
+      model: gemini-1.5-pro
+      temperature: 0.3 # Poca creatividad para corrección
+      max_tokens: 2500
       # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
-      listen_to_status: "validate_logic.fail"
+      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior (ahora es un patrón)
 
   # 4. Etapa de corrección de estilo directa
-  - name: correct_item_style
+  - name: refine_item_style # Nombre de la clase RefineStyleStage
     params:
       prompt: "04_agente_refinador_estilo.md"
+      provider: openai # Ejemplo: Usar OpenAI para corrección de estilo
+      model: gpt-4o-mini
+      temperature: 0.5 # Moderada creatividad para estilo
+      max_tokens: 2000
+      # Esta etapa actuará sobre ítems que no estén en fatal_error o fail/error, o que contengan warnings de validate_soft.
+      # listen_to_status_pattern: ".success" # Podría ser un patrón más complejo para elegir items a refinar. Por defecto, procesará todos los no-fallidos.
 
   # 5. Ciclo de validación y refinamiento de políticas
-  - name: validate_policy
+  - name: validate_policy # Nombre de la clase ValidatePolicyStage (Validador)
     params:
       prompt: "05_agent_politicas.md"
-  - name: refine_item_policy
+      provider: openai # Ejemplo: Usar OpenAI para validación de políticas
+      model: gpt-4o-mini
+      temperature: 0.1
+      max_tokens: 1500
+
+  - name: refine_item_policy # Nombre de la clase RefinePolicyStage (Refinador)
     params:
       prompt: "06_agente_refinador_politicas.md"
-      listen_to_status: "validate_policy.fail"
+      provider: openai # Mismo proveedor que el validador
+      model: gpt-4o-mini
+      temperature: 0.3
+      max_tokens: 2500
+      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
 
   # 6. Validación programática de reglas suaves (advertencias)
-  - name: validate_soft
+  - name: validate_soft # Nombre de la clase ValidateSoftStage
+    # Esta etapa no usa LLM directamente, su lógica es programática.
+    # Solo emite warnings, no cambia el estado a .fail si no hay errores previos.
 
   # 7. Etapa de evaluación final por un LLM
-  - name: finalize_item
+  - name: finalize_item # Nombre de la clase FinalizeItemStage
     params:
       prompt: "07_agent_final.md"
-      # model: "gpt-4" # Podríamos usar un modelo más potente para el juicio final
+      provider: gemini # Ejemplo: Usar Gemini para el juicio final
+      model: gemini-1.5-pro
+      temperature: 0.2 # Baja temperatura para juicio imparcial
+      max_tokens: 2000
 
   # 8. Persistencia final en la base de datos
-  - name: persist
+  - name: persist # Nombre de la clase PersistStage
+    # No usa LLM, su lógica es programática.
