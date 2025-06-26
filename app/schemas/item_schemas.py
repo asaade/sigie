@@ -19,6 +19,7 @@ class TipoReactivo(str, Enum):
     SELECCION_UNICA = "seleccion_unica"
     SELECCION_MULTIPLE = "seleccion_multiple"
     ORDENAMIENTO = "ordenamiento"
+    COMPLETAMIENTO = 'completamiento'
     RELACION_ELEMENTOS = "relacion_elementos"
 
 class RecursoVisualSchema(BaseModel):
@@ -92,21 +93,12 @@ class ItemPayloadSchema(BaseModel):
 
 class ReportEntrySchema(BaseModel):
     code: str = Field(..., max_length=150)
-    message: str = Field(..., max_length=3000) # Límite aumentado a 2000
+    message: str = Field(..., max_length=2000) # Límite aumentado a 2000
     field: Optional[str] = Field(None, max_length=300)
     severity: Literal['error', 'warning']
 
     class Config:
         frozen = True
-
-# class ReportEntrySchema(BaseModel):
-#     code: str = Field(..., max_length=50)
-#     message: str = Field(..., max_length=2000) # Límite aumentado a 2000
-#     field: Optional[str] = Field(None, max_length=100)
-#     severity: Literal['error', 'warning']
-
-#     class Config:
-#         frozen = True
 
 class ValidationResultSchema(BaseModel):
     is_valid: bool = Field(..., description="Veredicto final de la validación. True si pasa, False si falla.")

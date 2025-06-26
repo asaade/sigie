@@ -1,4 +1,4 @@
-## app/services/validators/soft.py
+# app/validators/soft.py
 import re
 import difflib
 from app.core.constants import (
@@ -106,9 +106,18 @@ def soft_validate(item: dict) -> list[dict]:
                 warnings.append({"warning_code": "W106", "message": f"Frase prohibida en la opción {opt['id']}."})
 
     # Homogeneidad de longitud entre opciones
-    lengths = [count_words(opt.get("texto", "")) for opt in options if opt.get("texto")]
-    if lengths and max(lengths) / min(lengths) > 1.25:
-        warnings.append({"warning_code": "W104", "message": "Variación excesiva en la longitud de opciones."})
+    # MODIFICADO: Filtrar opciones con cero palabras para evitar ZeroDivisionError
+    lengths_non_zero = [count_words(opt.get("texto", "")) for opt in options if opt.get("texto") and count_words(opt.get("texto", "")) > 0]
+
+    if lengths_non_zero: # Verificar si hay opciones con un conteo de palabras mayor a cero
+        min_len = min(lengths_non_zero)
+        max_len = max(lengths_non_zero)
+        if max_len / min_len > 1.25:
+            warnings.append({"warning_code": "W104", "message": "Variación excesiva en la longitud de opciones."})
+    elif all(count_words(opt.get("texto", "")) == 0 for opt in options if opt.get("texto")): # Si todas las opciones tienen 0 palabras
+        if len(options) > 0: # Si hay opciones, pero todas están vacías/sin palabras
+            warnings.append({"warning_code": "W104", "message": "Opciones con texto vacío o sin palabras detectado."})
+
 
     # Pistas léxicas
     correct_opt = next((o for o in options if o["id"] == correct_id), None)

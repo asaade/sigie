@@ -17,8 +17,7 @@ from app.prompts import load_prompt
 
 logger = logging.getLogger(__name__)
 
-# Límite para el summary de auditoría (AuditEntrySchema.summary tiene 1000 caracteres)
-MAX_AUDIT_SUMMARY_LENGTH = 900 # Un poco menos que el límite del esquema para seguridad
+MAX_AUDIT_SUMMARY_LENGTH = 900
 
 class BaseStage(ABC):
     """Clase base abstracta para cualquier etapa del pipeline."""
@@ -28,19 +27,22 @@ class BaseStage(ABC):
         self.params = params
         self.logger = logging.getLogger(f"app.pipelines.{self.stage_name}")
 
+        # Asegurarse de que el nombre del proveedor LLM esté en el contexto desde el inicio
+        if "provider" in self.params:
+            self.ctx["llm_provider_name"] = self.params["provider"]
+
     @abstractmethod
     async def execute(self, items: List[Item]) -> List[Item]:
         """El punto de entrada que el runner llamará para ejecutar la etapa."""
         raise NotImplementedError
 
-    def _set_status(self, item: Item, outcome: str, summary: str = ""):
+    def _set_status(self, item: Item, outcome: str, summary: str = ""): # ¡ESTE MÉTODO DEBE ESTAR PRESENTE!
         """
         Helper para estandarizar la actualización de estado y la auditoría.
         Genera un estado como 'validate_logic.success' o 'refine_policy.fail'.
         """
         new_status = f"{self.stage_name}.{outcome}"
         final_summary = summary or f"Stage completed with outcome '{outcome}'."
-        # CRÍTICO: Truncar el summary antes de pasarlo a AuditEntrySchema
         final_summary = final_summary[:MAX_AUDIT_SUMMARY_LENGTH]
 
         update_item_status_and_audit(item, self.stage_name, new_status, final_summary)
@@ -82,11 +84,11 @@ class LLMStage(BaseStage):
 
     async def _process_one_item(self, item: Item):
         """Orquesta la lógica de procesamiento para un único ítem."""
-        if skip_if_terminal_error(item, self.stage_name): # skip_if_terminal_error ya añade auditoría
+        if skip_if_terminal_error(item, self.stage_name):
             return
 
         if not item.payload:
-            handle_missing_payload( # handle_missing_payload ya añade auditoría y findings
+            handle_missing_payload(
                 item, self.stage_name, "NO_PAYLOAD", "Item has no payload for processing.",
                 f"{self.stage_name}.fail.no_payload", "Skipped: No payload to process."
             )
@@ -96,6 +98,16 @@ class LLMStage(BaseStage):
             llm_input = self._prepare_llm_input(item)
             schema = self._get_expected_schema()
 
+            # Extraer parámetros de configuración del LLM de self.params
+            # y pasarlos explícitamente a call_llm_and_parse_json_result
+            model_param = self.params.get("model")
+            temperature_param = self.params.get("temperature")
+            max_tokens_param = self.params.get("max_tokens")
+            top_k_param = self.params.get("top_k")
+            top_p_param = self.params.get("top_p")
+            stop_sequences_param = self.params.get("stop_sequences")
+            seed_param = self.params.get("seed")
+
             result, llm_errors, _ = await call_llm_and_parse_json_result(
                 prompt_name=self.prompt_name,
                 user_input_content=llm_input,
@@ -103,27 +115,32 @@ class LLMStage(BaseStage):
                 item=item,
                 ctx=self.ctx,
                 expected_schema=schema,
-                **self.params
+                model=model_param,
+                temperature=temperature_param,
+                max_tokens=max_tokens_param,
+                top_k=top_k_param,
+                top_p=top_p_param,
+                stop_sequences=stop_sequences_param,
+                seed=seed_param
             )
 
             if llm_errors:
-                item.findings.extend(llm_errors) # Añadir los errores de utilidad a findings
+                item.findings.extend(llm_errors)
                 error_summary = f"LLM utility failed: {llm_errors[0].message}"
                 self.logger.warning(f"For item {item.temp_id}, {error_summary}")
                 self._set_status(item, "fail.utility_error", error_summary)
             elif result:
                 await self._process_llm_result(item, result)
-                self._clean_llm_findings_on_success(item) # Limpiar hallazgos LLM
-            else: # Si no hay errores y tampoco hay un resultado válido
+                self._clean_llm_findings_on_success(item)
+            else:
                 summary = "LLM did not return a valid result. This strongly suggests the prompt's output format does not match the expected Pydantic schema."
                 self.logger.error(f"CRITICAL FAILURE for item {item.temp_id} in stage {self.stage_name}: {summary}")
                 self._set_status(item, "fail.no_result", summary)
 
-        except Exception as e: # Captura cualquier error inesperado en _prepare_llm_input o _process_llm_result
+        except Exception as e:
             self.logger.error(f"Unexpected error in stage {self.stage_name} for item {item.temp_id}: {e}", exc_info=True)
             self._set_status(item, "fail.unexpected_error", str(e))
 
-    # --- FUNCIÓN HELPER: LIMPIAR HALLAZGOS LLM DESPUÉS DE ÉXITO ---
     def _clean_llm_findings_on_success(self, item: Item) -> None:
         """
         Limpia los hallazgos del ítem que son generados por fallos de la utilidad LLM/parseo,
@@ -133,13 +150,11 @@ class LLMStage(BaseStage):
             f for f in item.findings
             if not (
                 f.code.startswith("LLM_CALL_FAILED") or
-                f.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
+                f.code.startswith("LLM_PARSE_VALIDATION_ERROR") == "true" or # Note: Changed to == "true" for strict comparison
                 f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
                 f.code.startswith("NO_LLM_")
             )
         ]
-
-    # --- MÉTODOS ABSTRACTOS QUE LAS CLASES HIJAS DEBEN IMPLEMENTAR ---
 
     @abstractmethod
     def _get_expected_schema(self) -> Type[BaseModel]:

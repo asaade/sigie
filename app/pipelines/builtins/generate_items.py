@@ -3,21 +3,19 @@
 from __future__ import annotations
 import logging
 import json
-from typing import List # Eliminadas Dict, Any, Type (ya no se usan al nivel superior)
+from typing import List
 from uuid import UUID, uuid4
 
 from ..registry import register
-from app.prompts import load_prompt # CRÍTICO: Re-importado
+from app.prompts import load_prompt
 from app.schemas.models import Item
-from app.schemas.item_schemas import ItemPayloadSchema, UserGenerateParams, ReportEntrySchema, MetadataSchema # Eliminadas OpcionSchema, RecursoVisualSchema (usadas en initialize_items_for_pipeline)
+from app.schemas.item_schemas import ItemPayloadSchema, UserGenerateParams, ReportEntrySchema, MetadataSchema
 from app.pipelines.abstractions import BaseStage
 
 from ..utils.llm_utils import call_llm_and_parse_json_result
-from ..utils.stage_helpers import ( # Se mantienen solo las helpers llamadas directamente
+from ..utils.stage_helpers import (
     handle_prompt_not_found_error,
-    clean_item_llm_errors,
     handle_item_id_mismatch_refinement,
-    # Eliminadas: add_audit_entry, update_item_status_and_audit, handle_missing_payload (ya no se usan directamente)
 )
 
 
@@ -35,71 +33,67 @@ class GenerateItemsStage(BaseStage):
         Punto de entrada. Orquesta la generación por lotes y rellena los ítems de entrada.
         """
         user_params_dict = self.ctx.get("user_params", {})
-        # Asumimos que user_params ya es válido gracias a la validación previa en el router y initialize_items_for_pipeline.
-        user_params = UserGenerateParams(**user_params_dict) # Deserializa el dict a UserGenerateParams
+        user_params = UserGenerateParams(**user_params_dict)
         n_items = user_params.n_items
 
         try:
-            # self.params.get("prompt") es el nombre del prompt. load_prompt lo carga.
             _ = load_prompt(self.params.get("prompt", "01_agent_dominio.md"))
         except FileNotFoundError as e:
-            # handle_prompt_not_found_error ya actualiza el estado de los ítems y los audita.
             return handle_prompt_not_found_error(items, self.stage_name, self.params.get("prompt", "01_agent_dominio.md"), e)
 
 
         self.logger.info(f"Starting batch generation of {n_items} items.")
 
-        # CRÍTICO: TRABAJAR DIRECTAMENTE SOBRE LA LISTA 'items' RECIBIDA DEL RUNNER.
         if len(items) != n_items:
             summary = f"Desalineación crítica: Esperaba {n_items} ítems pre-inicializados, pero recibí {len(items)}. Abortando generación."
             self.logger.critical(summary)
-            for item in items: # Marcar los ítems existentes como fatales
-                # Usamos _set_status de BaseStage para actualizar estado y auditar.
+            for item in items:
                 self._set_status(item, "fatal_error", summary)
                 item.findings.append(ReportEntrySchema(code="GEN_INIT_MISMATCH", message=summary, severity="error"))
-            # Si la lista está vacía, no podemos marcar nada, pero no hay nada que generar.
             if not items:
-                # Crear un item fatal para registrar el error si la lista estaba vacía inicialmente.
                 dummy_item = Item(payload=ItemPayloadSchema(item_id=uuid4(), metadata=MetadataSchema(idioma_item="es", area="General", asignatura="General", tema="Conceptos Generales", nivel_destinatario="Todos", nivel_cognitivo="recordar", dificultad_prevista="facil")))
                 self._set_status(dummy_item, "fatal_error", summary)
                 return [dummy_item]
             return items
 
 
-        # Preparar el input para el LLM Agente de Dominio.
         llm_input_payload = user_params.model_dump()
         llm_input_payload["n_items"] = n_items
 
         item_ids_for_llm = [str(item.temp_id) for item in items]
 
-        # Corregido el error de sintaxis y la lógica
         if len(item_ids_for_llm) < n_items:
             for _ in range(n_items - len(item_ids_for_llm)):
                 item_ids_for_llm.append(str(uuid4()))
-        llm_input_payload["item_ids_a_usar"] = item_ids_for_llm # Asignación corregida
+        llm_input_payload["item_ids_a_usar"] = item_ids_for_llm
 
         user_input_content_json = json.dumps(llm_input_payload, ensure_ascii=False, indent=2)
 
         self.logger.info(f"Calling LLM for batch generation of {n_items} items.")
 
-        # Llamada al LLM y parseo usando la utilidad
         payloads_list_raw, llm_errors, _ = await call_llm_and_parse_json_result(
             prompt_name=self.params.get("prompt", "01_agent_dominio.md"),
             user_input_content=user_input_content_json,
             stage_name=self.stage_name,
-            item=items[0], # Se pasa el primer item para registrar tokens/errores de la llamada LLM global
+            item=items[0],
             ctx=self.ctx,
-            expected_schema=List[ItemPayloadSchema] # Esperamos una lista de ItemPayloadSchema
+            expected_schema=List[ItemPayloadSchema],
+            model=self.params.get("model"),
+            temperature=self.params.get("temperature"),
+            max_tokens=self.params.get("max_tokens"),
+            # provider=self.params.get("provider"), # ¡REMOVIDO! Ya se gestiona a través de ctx.
+            top_k=self.params.get("top_k"),
+            top_p=self.params.get("top_p"),
+            stop_sequences=self.params.get("stop_sequences"),
+            seed=self.params.get("seed")
         )
 
-        # Manejo de errores de la utilidad (llamada LLM o parseo inicial de la lista)
         if llm_errors:
-            for item in items: # Propagar el error a todos los ítems del lote
+            for item in items:
                 self._set_status(item, "fail.llm_error", f"LLM call or parse failed: {llm_errors[0].message}")
                 item.findings.extend(llm_errors)
             return items
 
-        # Verificación de formato y conteo de la respuesta del LLM
         if not isinstance(payloads_list_raw, list):
             summary = "LLM did not return a list of items as expected."
             for item in items:
@@ -114,23 +108,29 @@ class GenerateItemsStage(BaseStage):
                 item.findings.append(ReportEntrySchema(code="LLM_ITEM_COUNT_MISMATCH", message=summary, severity="error"))
             return items
 
-        # Mapear los payloads recibidos a los ítems pre-inicializados
         payloads_map = {str(p.item_id): p for p in payloads_list_raw}
 
         successful_generation_count = 0
-        for item in items: # Iteramos sobre los ítems que el runner nos pasó
+        for item in items:
             payload = payloads_map.get(str(item.temp_id))
             if payload:
                 item.payload = payload
                 item.prompt_v = self.params.get("prompt")
-                clean_item_llm_errors(item)
+                item.findings = [
+                    f for f in item.findings
+                    if not (
+                        f.code.startswith("LLM_CALL_FAILED") or
+                        f.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
+                        f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
+                        f.code.startswith("NO_LLM_")
+                    )
+                ]
                 successful_generation_count += 1
                 self._set_status(item, "success", "Item generated successfully.")
             else:
                 summary = f"LLM did not return a payload for expected item_id {item.temp_id}. Mismatch in batch generation."
-                # handle_item_id_mismatch_refinement ya registra el error y actualiza el estado.
                 handle_item_id_mismatch_refinement(
-                    item, self.stage_name, item.temp_id, UUID("00000000-0000-0000-0000-000000000000"), # ID ficticio para 'received_id'
+                    item, self.stage_name, item.temp_id, UUID("00000000-0000-0000-0000-000000000000"),
                     f"{self.stage_name}.fail.id_mismatch",
                     summary
                 )

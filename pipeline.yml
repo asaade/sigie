@@ -7,8 +7,9 @@ stages:
   - name: generate_items # Nombre de la clase GenerateItemsStage
     params:
       prompt: "01_agent_dominio.md"
-      provider: openai # Ejemplo: Usar OpenAI para la generación
-      model: gpt-4o-mini # Ejemplo de modelo
+      provider: openrouter # Ejemplo: Usar OpenAI para la generación
+      ## model: "mistralai/mistral-small-3.2-24b-instruct:free" # Ejemplo de modelo
+      model: "deepseek/deepseek-r1:free"
       temperature: 0.7
       max_tokens: 3000
 
@@ -21,16 +22,16 @@ stages:
   - name: validate_logic # Nombre de la clase ValidateLogicStage (Validador)
     params:
       prompt: "02_agent_razonamiento.md"
-      provider: gemini # Ejemplo: Usar Gemini para validación lógica
-      model: gemini-1.5-pro
+      provider: ollama # Ejemplo: Usar Gemini para validación lógica
+      model: llama3.2
       temperature: 0.1 # Baja temperatura para precisión en validación
       max_tokens: 1500
 
   - name: refine_item_logic # Nombre de la clase RefineLogicStage (Refinador)
     params:
       prompt: "03_agente_refinador_razonamiento.md"
-      provider: gemini # Mismo proveedor que el validador
-      model: gemini-1.5-pro
+      provider: ollama # Mismo proveedor que el validador
+      model: llama3.2
       temperature: 0.3 # Poca creatividad para corrección
       max_tokens: 2500
       # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
@@ -40,8 +41,8 @@ stages:
   - name: refine_item_style # Nombre de la clase RefineStyleStage
     params:
       prompt: "04_agente_refinador_estilo.md"
-      provider: openai # Ejemplo: Usar OpenAI para corrección de estilo
-      model: gpt-4o-mini
+      provider: ollama # Ejemplo: Usar OpenAI para corrección de estilo
+      model: llama3.2
       temperature: 0.5 # Moderada creatividad para estilo
       max_tokens: 2000
       # Esta etapa actuará sobre ítems que no estén en fatal_error o fail/error, o que contengan warnings de validate_soft.
@@ -51,16 +52,16 @@ stages:
   - name: validate_policy # Nombre de la clase ValidatePolicyStage (Validador)
     params:
       prompt: "05_agent_politicas.md"
-      provider: openai # Ejemplo: Usar OpenAI para validación de políticas
-      model: gpt-4o-mini
+      provider: ollama # Ejemplo: Usar OpenAI para validación de políticas
+      model: llama3.2
       temperature: 0.1
       max_tokens: 1500
 
   - name: refine_item_policy # Nombre de la clase RefinePolicyStage (Refinador)
     params:
       prompt: "06_agente_refinador_politicas.md"
-      provider: openai # Mismo proveedor que el validador
-      model: gpt-4o-mini
+      provider: ollama # Mismo proveedor que el validador
+      model: llama3.2
       temperature: 0.3
       max_tokens: 2500
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
@@ -74,8 +75,8 @@ stages:
   - name: finalize_item # Nombre de la clase FinalizeItemStage
     params:
       prompt: "07_agent_final.md"
-      provider: gemini # Ejemplo: Usar Gemini para el juicio final
-      model: gemini-1.5-pro
+      provider: openrouter # Ejemplo: Usar OpenAI para la generación
+      model: "deepseek/deepseek-r1:free"
       temperature: 0.2 # Baja temperatura para juicio imparcial
       max_tokens: 2000
 

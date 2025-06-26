@@ -27,20 +27,33 @@ def parse_payload(text: str) -> Union[Dict[str, Any], List[Any]]:
     return json.loads(clean)
 
 def build_prompt_messages(
-    template: str,
-    payload: Union[Dict[str, Any], List[Any], str],
+    system_template: str,
+    user_message_template: str, # Esta es la plantilla completa del prompt después de ---
+    payload: Union[Dict[str, Any], List[Any], str], # Esta es la carga útil JSON real
 ) -> List[Dict[str, str]]:
     """
-    Construye un par de mensajes system+user:
-      - system: la plantilla.
-      - user: el JSON serializado de `payload`.
-    Si `payload` ya es str, lo usa tal cual (no lo vuelve a dump).
+    Construye una lista de mensajes system+user para la API del LLM.
+    Enfáticamente separa las instrucciones de los parámetros de entrada.
     """
     if isinstance(payload, str):
-        user_content = payload
+        user_content_payload_str = payload
     else:
-        user_content = json.dumps(payload, ensure_ascii=False)
-    return [
-        {"role": "system", "content": template},
-        {"role": "user", "content": user_content},
-    ]
+        # Asegurarse de que el payload JSON se formatee bien para el prompt
+        user_content_payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
+
+    # MODIFICADO: Claramente separar las instrucciones del prompt de los parámetros de entrada.
+    # Esto ayuda al LLM a diferenciar entre las instrucciones de su tarea y los datos de entrada.
+    final_user_message_content = (
+        f"{user_message_template}\n\n"
+        f"--- INICIO DE PARÁMETROS DE ENTRADA ---\n"
+        f"```json\n{user_content_payload_str}\n```\n"
+        f"--- FIN DE PARÁMETROS DE ENTRADA ---\n\n"
+        f"Recuerda: Tu respuesta debe ser *solo* el arreglo JSON de ítems, conforme a la 'Estructura de Salida Esperada'."
+    )
+
+    messages = []
+    if system_template:
+        messages.append({"role": "system", "content": system_template})
+    messages.append({"role": "user", "content": final_user_message_content})
+
+    return messages

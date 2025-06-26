@@ -1,20 +1,31 @@
 # app/prompts/__init__.py
+import os
+import re
+from typing import Dict
 
-from pathlib import Path
-from app.core.config import get_settings
+PROMPT_DIR = os.path.join(os.path.dirname(__file__))
 
-settings = get_settings()
-
-# Asumimos que la configuración tiene una variable para el directorio de prompts.
-# Si no, se puede definir aquí o en `constants.py`.
-PROMPTS_DIR = Path(settings.PROMPTS_DIR) if hasattr(settings, 'PROMPTS_DIR') else Path(__file__).parent
-
-def load_prompt(name: str) -> str:
+def load_prompt(name: str) -> Dict[str, str]:
     """
-    Carga un prompt desde el directorio de prompts.
-    Lanza FileNotFoundError si no existe.
+    Carga una plantilla de prompt desde un archivo Markdown y la parsea en
+    partes de mensaje del sistema y plantilla de mensaje de usuario.
+    Asume que el contenido antes de la primera '---' es el mensaje del sistema.
+    El resto del archivo es la plantilla del mensaje de usuario.
     """
-    path = PROMPTS_DIR / name
-    if not path.is_file():
-        raise FileNotFoundError(f"Prompt file not found at path: {path}")
-    return path.read_text(encoding="utf-8")
+    path = os.path.join(PROMPT_DIR, name)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Prompt file not found: {path}")
+
+    # Dividir el contenido por la primera ocurrencia de '---'
+    parts = re.split(r'\n---+\n', content, 1)
+
+    system_message = parts[0].strip() if parts else ""
+    user_message_template = parts[1].strip() if len(parts) > 1 else ""
+
+    return {
+        "system_message": system_message,
+        "user_message_template": user_message_template
+    }

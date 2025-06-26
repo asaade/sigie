@@ -62,18 +62,17 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
 
 ### Códigos de error comunes
 
-| Código                        | Descripción                                    |
-|-------------------------------|------------------------------------------------|
-| E_CALCULO_INCORRECTO          | El resultado de la opción correcta es erróneo  |
-| E_MULTIPLES_CORRECTAS         | Hay más de una opción marcada como correcta    |
-| E_NINGUNA_CORRECTA            | No hay opción marcada como correcta            |
-| E_UNIDADES_INCONSISTENTES     | Unidades no coinciden entre campos             |
-| E_RESPUESTA_ID_NO_COINCIDE    | `respuesta_correcta_id` no coincide con opción |
-| E_CONTRADICCION_INTERNA       | Información contradictoria en el ítem          |
-| E_NIVEL_COGNITIVO_INAPROPIADO | El ítem no corresponde al nivel declarado      |
-| E070_NO_CORRECT_RATIONALE     | Falta justificación en la opción correcta      |
-| E091_CORRECTA_SIMILAR_STEM    | Opción correcta replica el enunciado           |
-| E_DESCONOCIDO                 | Error lógico no clasificable claramente        |
+| Código                        | Descripción                                                    | Severidad  |
+|-------------------------------|----------------------------------------------------------------|------------|
+| E070_NO_CORRECT_RATIONALE     | Falta la justificación de la opción correcta.                  | fatal      |
+| E071_CALCULO_INCORRECTO       | Resultado incorrecto en la opción correcta.                    | fatal      |
+| E072_UNIDADES_INCONSISTENTES  | Unidades o magnitudes no coinciden entre enunciado, opciones o justificaciones. | fatal      |
+| E073_CONTRADICCION_INTERNA    | Información contradictoria o inconsistencia lógica interna en el ítem. | fatal      |
+| E_NIVEL_COGNITIVO_INAPROPIADO | El ítem no corresponde al nivel cognitivo Bloom declarado.      | fatal      |
+| E_DESCONOCIDO_LOGICO          | Error lógico no clasificado.                                   | fatal      |
+| E012_CORRECT_COUNT            | Debe haber exactamente una opción correcta.                    | fatal      |
+| E013_ID_NO_MATCH              | `respuesta_correcta_id` no coincide con la opción marcada.     | fatal      |
+| E091_CORRECTA_SIMILAR_STEM    | Opción correcta demasiado similar al stem.                     | fatal      |
 
 ### Restricciones
 
@@ -81,7 +80,7 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
 * No generes explicaciones fuera del objeto JSON.
 * No emitas juicios sobre estilo, lenguaje o redacción.
 
-### Ejemplo de salida
+### Ejemplo de salida (es solo un ejemplo, no lo devuelvas)
 
 ```json
 {
@@ -90,7 +89,7 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
   "findings": [
     {
       "code": "E_CALCULO_INCORRECTO",
-      "message": "La opción correcta contiene un resultado equivocado (esperado: 45)"
+      "message": "La opción correcta contiene un cálculo equivocado"
     },
     {
       "code": "E_RESPUESTA_ID_NO_COINCIDE",
@@ -98,4 +97,3 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
     }
   ]
 }
-```

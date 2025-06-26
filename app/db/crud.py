@@ -1,4 +1,4 @@
-# Archivo actualizado: app/db/crud.py
+# app/db/crud.py
 
 import logging
 from typing import List
@@ -16,23 +16,19 @@ def save_items(db: Session, items: List[pydantic_models.Item]) -> List[db_models
     db_items = []
     for item_schema in items:
 
-        # ▼▼▼ CAMBIO PRINCIPAL AQUÍ ▼▼▼
-        # Usamos el nombre de clase correcto del modelo SQLAlchemy (asumimos que es 'Item')
         db_item_data = {
-            "id": item_schema.id,
+            "id": item_schema.item_id,
             "temp_id": item_schema.temp_id,
             "status": item_schema.status,
             "token_usage": item_schema.token_usage,
-            "payload": item_schema.payload.model_dump() if item_schema.payload else None,
-            "final_evaluation": item_schema.final_evaluation.model_dump() if item_schema.final_evaluation else None,
-            "findings": [f.model_dump() for f in item_schema.findings],
-            "audit_trail": [a.model_dump() for a in item_schema.audits]
+            # MODIFICADO: Añadido mode="json" a todas las llamadas a model_dump()
+            "payload": item_schema.payload.model_dump(mode="json") if item_schema.payload else None,
+            "final_evaluation": item_schema.final_evaluation.model_dump(mode="json") if item_schema.final_evaluation else None,
+            "findings": [f.model_dump(mode="json") for f in item_schema.findings],
+            "audits": [a.model_dump(mode="json") for a in item_schema.audits]
         }
 
-        # Instanciamos el modelo correcto
         db_item = db_models.ItemModel(**db_item_data)
-
-        # db.merge() sigue siendo la estrategia correcta
         merged_item = db.merge(db_item)
         db_items.append(merged_item)
 

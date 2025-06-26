@@ -49,20 +49,15 @@ class Item(BaseModel): # Mantiene herencia de BaseModel
 
     def to_orm(self) -> Dict[str, Any]:
         """Convierte el objeto Item a un diccionario compatible con el ORM para persistir."""
-        # Separamos los findings por severidad al persistir para compatibilidad con la DB.
-        db_errors = [f.model_dump() for f in self.findings if f.severity == 'error']
-        db_warnings = [f.model_dump() for f in self.findings if f.severity == 'warning']
-
         return {
             "id": self.item_id,
             "temp_id": str(self.temp_id), # UUID a string para DB
             "status": self.status,
             "payload": self.payload.model_dump(mode="json"), # Serializa el payload a JSON string
-            "errors": db_errors, # Mapeamos a la columna errors de la DB
-            "warnings": db_warnings, # Mapeamos a la columna warnings de la DB
-            "audits": [audit.model_dump() for audit in self.audits], # Convertir a dict para la DB
-            "prompt_v": self.prompt_v, # Versión del prompt
-            "token_usage": self.token_usage, # Tokens
-            "final_evaluation": self.final_evaluation, # Incluir el nuevo campo en la serialización ORM
+            "findings": [f.model_dump() for f in self.findings], # Guardar findings unificados
+            "audit_trail": [audit.model_dump() for audit in self.audits], # Mapear audits a audit_trail para la DB
+            "prompt_v": self.prompt_v,
+            "token_usage": self.token_usage,
+            "final_evaluation": self.final_evaluation.model_dump() if self.final_evaluation else None, # Asegurar serialización
             # created_at es gestionado por la DB
         }

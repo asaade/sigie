@@ -35,10 +35,10 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
 }
 ```
 
-* Si `is_valid` es `true`, `findings` debe estar vacío.
-* Si `is_valid` es `false`, se debe listar cada hallazgo relevante, usando la clave "code" y asegurando que cada objeto incluya el campo "severity" ("warning" o "error" según corresponda del catálogo).
+  * Si `is_valid` es `true`, `findings` debe estar vacío.
+  * Si `is_valid` es `false`, se debe listar cada hallazgo relevante, usando la clave "code" y asegurando que cada objeto incluya el campo "severity" ("warning" o "error" según corresponda del catálogo).
 
----
+-----
 
 ## Criterios de evaluación
 
@@ -46,50 +46,45 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
 
 Detecta contenido que:
 
-* Refuerce estereotipos (género, clase, cultura, religión, etnia, discapacidad).
-* Use nombres propios, referencias culturales o imágenes sesgadas (`W_SESGO_GENERO`, `W_SESGO_NOMBRE`, `W_SESGO_IMAGEN`, `W_CULTURAL_ESPECIFICO`).
-* Contenga lenguaje informal, vulgar o discriminatorio (`E090_PROFANITY`, `W_CONTENIDO_TRIVIAL`).
+  * Contenga estereotipos de género, cultura, etnia, religión, nivel socioeconómico o cualquier otra forma de sesgo.
+  * Presente lenguaje excluyente o discriminatorio.
 
-### B. Accesibilidad visual
+### B. Accesibilidad
 
-Verifica que:
+Detecta problemas que dificulten la comprensión del ítem para personas con distintas capacidades o con acceso limitado a información visual/auditiva.
 
-* El texto alternativo (`alt_text`) no sea vago ni mencione colores sin necesidad (`W107_COLOR_ALT`, `W108_ALT_VAGUE`).
-* La descripción del recurso visual (`descripcion`) sea clara.
-* La URL de referencia (`referencia`) sea válida (`E050_BAD_URL`).
-* El recurso visual no transmita información exclusivamente por color.
+### C. Neutralidad y Estilo
 
-### C. Lenguaje problemático
+Detecta:
 
-Evita extremos y vaguedad innecesaria:
+  * Tono o lenguaje inapropiado para un contexto académico.
+  * Uso de absolutos ("siempre", "nunca", "todos", "ninguno") o hedging ("quizá", "algunos") sin justificación científica.
+  * Errores gramaticales, ortográficos o de puntuación que afecten la claridad.
+  * Falta de concisión que dificulte la comprensión.
 
-* `W102_ABSOL_STEM`: uso injustificado de “siempre”, “nunca”, etc.
-* `W103_HEDGE_STEM`: uso de expresiones vagas como “algunas veces”, “quizá…”.
-
----
+-----
 
 ## Tabla resumida de advertencias
 
-| Código                   | Descripción breve                                  |
-|--------------------------|----------------------------------------------------|
-| E090_PROFANITY           | Contenido ofensivo o prohibido                     |
-| W102_ABSOL_STEM          | Absoluto sin justificación científica              |
-| W103_HEDGE_STEM          | Hedging innecesario en el enunciado                |
-| W106_TODAS_NINGUNA       | Uso de “Todas/Ninguna de las anteriores”           |
-| W107_COLOR_ALT           | Referencia visual basada solo en color             |
-| W108_ALT_VAGUE           | Texto alternativo vago o genérico                  |
-| W_CONTENIDO_TRIVIAL      | Lenguaje o tono inadecuado para contexto académico |
-| W_SESGO_GENERO           | Lenguaje con sesgo de género                       |
-| W_SESGO_NOMBRE           | Nombre propio excluyente                           |
-| W_CULTURAL_ESPECIFICO    | Referencia cultural excluyente                     |
-| W_SESGO_IMAGEN           | Imagen con sesgo implícito                         |
-| W_DESCRIPCION_DEFICIENTE | Descripción visual poco informativa                |
-| W_REFERENCIA_INVALIDA    | URL no válida o inaccesible                        |
+| Código                    | Descripción breve                                             | Severidad |
+|---------------------------|---------------------------------------------------------------|-----------|
+| E090_PROFANITY            | Contenido ofensivo o prohibido.                               | fatal     |
+| W102_ABSOL_STEM           | Absoluto injustificado (ej. siempre, nunca).                  | warn      |
+| W103_HEDGE_STEM           | Hedging innecesario (ej. quizá, algunos).                     | warn      |
+| W107_COLOR_ALT            | alt_text menciona colores sin codificar información.          | warn      |
+| W108_ALT_VAGUE            | alt_text vago o genérico.                                     | warn      |
+| W120_SESGO_GENERO         | Lenguaje con sesgo de género.                                 | warn      |
+| W121_SESGO_CULTURAL       | Referencia cultural o regional excluyente.                    | warn      |
+| W122_SESGO_NOMBRE         | Nombre propio con posible sesgo.                              | warn      |
+| W_CONTENIDO_TRIVIAL       | Lenguaje o tono inadecuado para contexto académico.            | warn      |
+| W_SESGO_IMAGEN            | Imagen o recurso visual con sesgo implícito.                  | warn      |
+| W_DESCRIPCION_DEFICIENTE  | Descripción visual poco informativa.                          | warn      |
+| W_REFERENCIA_INVALIDA     | URL de referencia no válida o inaccesible.                    | warn      |
 
----
+-----
 
 ## Restricciones
 
-* No modifiques ningún campo del ítem.
-* No incluyas texto fuera del objeto JSON.
-* Usa solo los códigos del catálogo oficial.
+  * No modifiques ningún campo del ítem.
+  * No incluyas texto fuera del objeto JSON.
+  * Usa solo los códigos del catálogo oficial.

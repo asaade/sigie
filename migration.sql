@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS items (
     audits JSONB NOT NULL DEFAULT '[]'::jsonb,
     prompt_v TEXT,
     token_usage INTEGER,
+    final_evaluation JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
