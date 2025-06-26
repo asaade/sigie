@@ -41,6 +41,11 @@ ESTILO:
     fix_hint: Representar errores alternativos o reformular.
     severity: warn
 
+  - code: W113
+    message: Cuantificador vago detectado en el enunciado.
+    fix_hint: Sustituir por un cuantificador más preciso o reformular.
+    severity: warn
+
 LOGICO:
   - code: E070_NO_CORRECT_RATIONALE
     message: Falta la justificación de la opción correcta.
@@ -109,7 +114,7 @@ GENERAL:
     severity: fatal
 
   - code: E050_BAD_URL
-    message: \'referencia\' no es una URL válida.
+    message: 'referencia' no es una URL válida.
     fix_hint: Proveer URL accesible o dejar el recurso visual en null.
     severity: fatal
 
@@ -188,4 +193,20 @@ POLITICAS:
   - code: W121_CULTURAL_EXCL
     message: Referencia cultural excluyente.
     fix_hint: Usar ejemplos accesibles a diversidad de estudiantes.
+    severity: warn
+  - code: W_CONTENIDO_TRIVIAL
+    message: Lenguaje o tono inadecuado para contexto academico.
+    fix_hint: Ajustar lenguaje para que sea formal y adecuado al contexto academico.
+    severity: warn
+  - code: W_SESGO_IMAGEN
+    message: Imagen o recurso visual con sesgo implicito.
+    fix_hint: Reemplazar o ajustar recurso visual para eliminar el sesgo.
+    severity: warn
+  - code: W_DESCRIPCION_DEFICIENTE
+    message: Descripcion visual poco informativa.
+    fix_hint: Mejorar la descripcion del recurso visual para que sea mas informativa.
+    severity: warn
+  - code: W_REFERENCIA_INVALIDA
+    message: URL de referencia no valida o inaccesible.
+    fix_hint: Proveer una URL valida y accesible o eliminar la referencia.
     severity: warn
