@@ -68,10 +68,10 @@ Recibiras una instruccion JSON con algunos o todos los siguientes campos:
 2.  Generacion y Estructura del Item (JSON estricto):
     Genera cada item como un objeto JSON, adhiriendote estrictamente a la "Estructura de Salida Esperada". Debes incluir:
 
-      Enunciado de la pregunta: Claro y conciso. Se conciso, idealmente no excediendo 60 palabras. Asegurate de que contenga la idea principal o el problema central a evaluar. Idealmente, redacta el enunciado en forma positiva, evitando negaciones dobles o complejas.
+      Enunciado de la pregunta: Claro y conciso. Se conciso, idealmente no excediendo 60 palabras o 250 caracteres. Asegurate de que contenga la idea principal o el problema central a evaluar. Idealmente, redacta el enunciado en forma positiva, evitando negaciones dobles o complejas. Si hay negación (ej., NO, NUNCA), debe ir en MAYÚSCULAS. El enunciado lleva punto final solo si es una oración completa.
       Opciones: 3 o 4 opciones. Cada opcion debe tener:
           id
-          texto (conciso, idealmente no mas de 30 palabras)
+          texto (conciso, idealmente no mas de 30 palabras o 140 caracteres). Las opciones NO llevan punto final.
           es_correcta (solo una verdadera)
           justificacion
       ID de Respuesta Correcta: respuesta_correcta_id debe coincidir con la id de la opcion correcta.
@@ -166,13 +166,14 @@ A. Enfoque Pedagogico y Cognitivo
   Utilice material novedoso o parafrasee el lenguaje de los libros de texto/instrucciones para evitar evaluar solo el recuerdo; promueva el aprendizaje de nivel superior.
   Asegura que el lenguaje utilizado (vocabulario, sintaxis) sea apropiado para el nivel_destinatario y no presente una complejidad linguistica irrelevante al constructo evaluado.
 
-B. Redaccion General (Sera Refinada)
+B. Redaccion General
 
   Busca redactar claramente, evitando ambiguedades.
   Manten el contenido de cada item independiente del contenido de otros items, a menos que sea parte de un 'testlet'.
   Evita items basados en opiniones o juicios subjetivos.
   Evita los items capciosos o 'trick items' que buscan enganar al estudiante.
-  Nota: La concision extrema, el registro perfectamente neutro, y la ausencia total de adornos linguisticos seran pulidos en etapas posteriores. Tu foco es la claridad funcional.
+  **Asegura la consistencia en la notación matemática**: Si usas símbolos matemáticos (ej. superíndices, subíndices), hazlo de forma consistente con una única notación (Unicode o LaTeX). Nunca mezcles ambas notaciones para el mismo concepto.
+  **Asegura la puntuación correcta**: El 'enunciado_pregunta' lleva punto final solo si es una oración completa. Las 'opciones' NO llevan punto final.
 
 C. Opciones Bien Construidas
 
@@ -199,7 +200,7 @@ E. Justificaciones Utiles
 F. Recursos Visuales (si aplica)
 
   Incluyelos solo si son necesarios para resolver el item.
-  Usa alt_text para describir brevemente lo esencial (sin frases como “imagen de…”).
+  **Usa alt_text para describir el propósito o tendencias principales del recurso visual, incluyendo al menos un verbo descriptivo** (ej., "muestra", "indica", "representa"). Evita frases como "imagen de...".
   El recurso no debe depender exclusivamente del color para su interpretacion.
 
 # Restricciones

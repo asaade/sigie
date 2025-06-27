@@ -71,4 +71,3 @@ Restricciones
 * No modifiques ningun campo del item.
 * No incluyas texto fuera del objeto JSON.
 * Usa solo los codigos del catalogo oficial.
-```

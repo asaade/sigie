@@ -157,6 +157,24 @@ class ValidateHardStage(BaseStage):
                                 )
                                 is_valid = False
 
+                # --- NUEVA VALIDACIÓN: E060_MULTI_TESTLET (Inconsistencia testlet_id y estimulo_compartido) ---
+                testlet_id_present = item.payload.testlet_id is not None
+                estimulo_compartido_present = (item.payload.estimulo_compartido is not None and
+                                               item.payload.estimulo_compartido.strip() != "")
+
+                if testlet_id_present != estimulo_compartido_present: # Uno está presente y el otro no
+                    current_findings.append(
+                        ReportEntrySchema(
+                            code="E060_MULTI_TESTLET",
+                            message="Inconsistencia en los campos 'testlet_id' y 'estimulo_compartido'. Ambos deben estar presentes o ausentes simultáneamente para un testlet.",
+                            field="testlet_id / estimulo_compartido",
+                            severity="fatal"
+                        )
+                    )
+                    is_valid = False
+                # --- FIN NUEVA VALIDACIÓN ---
+
+
                 # 5. Validaciones de URL para recurso_visual
                 # La validación Pydantic de HttpUrl ya se encarga de que sea un formato válido.
                 # Aquí solo verificamos que si existe, sea del tipo correcto.
@@ -202,7 +220,7 @@ class ValidateHardStage(BaseStage):
                 summary_message = f"Validación dura: Error fatal. {len(current_findings)} errores críticos encontrados."
             elif not is_valid: # Esto es un caso que no debería ocurrir si todos los errores son fatal
                 outcome_status = "error" # En validate_hard, todos los errores son fatales, así que esta rama no se alcanzaría si is_valid=False y hay findings.
-                summary_message = f"Validación dura: Falló (errores no fatales, lo cual es inesperado para esta etapa)."
+                summary_message = "Validación dura: Falló (errores no fatales, lo cual es inesperado para esta etapa)."
             else:
                 outcome_status = "success"
                 summary_message = "Validación dura: OK."

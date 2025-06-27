@@ -5,17 +5,17 @@ ESTILO:
   - code: E020_STEM_LENGTH
     message: Enunciado excede límite de longitud.
     fix_hint: Recortar el enunciado sin perder claridad.
-    severity: fatal # Un ítem muy largo podría ser inmanejable.
+    severity: error # RECLASIFICADO: Corregible por refinador.
 
   - code: E040_OPTION_LENGTH
     message: Alguna opción excede el límite de longitud.
     fix_hint: Acortar el texto de la opción.
-    severity: fatal # Opciones muy largas pueden romper la visualización o el parseo.
+    severity: error # RECLASIFICADO: Corregible por refinador.
 
   - code: E080_MATH_FORMAT
     message: Unicode y LaTeX mezclados para el mismo símbolo o formato matemático inconsistente.
     fix_hint: Usar solo Unicode o solo LaTeX de forma consistente en el mismo ítem.
-    severity: fatal # Inconsistencia de formato que podría romper renderizado o interpretación.
+    severity: error # RECLASIFICADO: Corregible por refinador.
 
   - code: W101_STEM_NEG_LOWER
     message: Negación en minúscula en el enunciado; debería ir en MAYÚSCULAS.
@@ -196,7 +196,7 @@ POLITICAS:
   - code: W108_ALT_VAGUE
     message: alt_text vago o genérico para el recurso visual.
     fix_hint: Describir la tendencia, propósito o elementos clave del recurso visual.
-    severity: warning # Falta de detalle, afecta la accesibilidad, no rompe la funcionalidad.
+    severity: warning # Falta de detalle, no rompe la funcionalidad.
 
 # ERRORES DE SISTEMA LLM / CALIDAD DE GENERACIÓN: Problemas en la interacción o salida fundamental del LLM.
 LLM_SISTEMA:
