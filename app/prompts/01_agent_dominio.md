@@ -26,7 +26,7 @@ Recibiras una instruccion JSON con algunos o todos los siguientes campos:
   "nivel_destinatario": "Media superior",
   "nivel_cognitivo": "recordar" | "comprender" | "aplicar" | "analizar" | "evaluar" | "crear", // Nivel de la Taxonomia de Bloom.
   "dificultad_prevista": "facil" | "media" | "dificil", // Valores en minusculas.
-  "tipo_reactivo": "opcion multiple" | "seleccion_unica" | "seleccion_multiple" | "ordenamiento" | "relacion_elementos", // Valores exactos del Enum.
+  "tipo_reactivo": "opción múltiple" | "seleccion_unica" | "seleccion_multiple" | "ordenamiento" | "relacion_elementos", // Valores exactos del Enum.
   "fragmento_contexto": null, // Campo de entrada. Usa null si no aplica.
   "recurso_visual": null, // Campo de entrada. Usa null si no aplica.
   /* Ejemplo si "recurso_visual" viene con datos:
@@ -104,7 +104,7 @@ Este es solo un ejemplo, no lo devuelvas.
       "fecha_creacion": null // Este campo es gestionado por el sistema, NO lo incluyas en tu salida.
     },
 
-    "tipo_reactivo": "opcion multiple" | "seleccion_unica" | "seleccion_multiple" | "ordenamiento" | "relacion_elementos", // Usa el valor EXACTO del Enum
+    "tipo_reactivo": "opción múltiple" | "seleccion_unica" | "seleccion_multiple" | "ordenamiento" | "relacion_elementos", // Usa el valor EXACTO del Enum
     "fragmento_contexto": null, // Usa null si no aplica
 
     "recurso_visual": null, // CRITICO: Usa null si no hay recurso visual. NO un objeto vacio {}.

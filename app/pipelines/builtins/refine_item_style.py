@@ -28,17 +28,14 @@ class RefineStyleStage(LLMStage):
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
-        Prepara el string de input para el LLM. Envía el payload completo del ítem
-        junto con una lista de problemas de estilo (advertencias) para su refinamiento.
+        Prepara el string de input para el LLM.
         """
-        # Filtramos los hallazgos (problemas) con severidad 'warning' para este refinador.
-        # Asumimos que validate_soft es la etapa que añade warnings de estilo
-        # y que sus findings se distinguen por su 'severity="warning"'.
-        style_warnings_to_fix = [f for f in item.findings if f.severity == 'warning']
+        logic_problems_to_fix = [f for f in item.findings if f.severity == 'error'] # O el criterio que uses para filtrar para el LLM
 
         input_payload = {
-            "item": item.payload.model_dump(mode="json"),
-            "problems": [w.model_dump() for w in style_warnings_to_fix]
+            "item_id": str(item.payload.item_id), # CAMBIO CRÍTICO: Convertir UUID a string
+            "item_payload": item.payload.model_dump(mode="json"),
+            "problems": [p.model_dump(mode="json") for p in logic_problems_to_fix]
         }
         return json.dumps(input_payload, indent=2, ensure_ascii=False)
 

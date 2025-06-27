@@ -34,49 +34,72 @@ Eres el Agente Refinador de Estilo. Recibes un item de opcion multiple y una lis
 
 3. Registro de correcciones
 
-Por cada cambio realizado, anade una entrada al arreglo correcciones_realizadas:
+Por cada cambio realizado, anade una entrada al arreglo correcciones_realizadas. CADA OBJETO DE CORRECCION DEBE CUMPLIR LA ESTRUCTURA EXACTA.
 
 {
-  "field": "enunciado_pregunta",
-  "warning_code": "W101_STEM_NEG_LOWER", // O el codigo de la advertencia de estilo corregida
-  "original": "No es correcto hacer esto.",
-  "corrected": "Es incorrecto hacer esto.",
-  "reason": "Correccion de negacion en minuscula para mayor claridad."
+  "field": "enunciado_pregunta", // OBLIGATORIO: DEBE SER UN STRING NO NULO
+  "error_code": "W101_STEM_NEG_LOWER", // OBLIGATORIO: DEBE SER UN STRING NO NULO (ej. W102_ABSOL_STEM). SIEMPRE usa 'error_code', NUNCA 'warning_code'.
+  "original": "No es correcto hacer esto.", // OBLIGATORIO: Si hubo un cambio, debe ser string no nulo
+  "corrected": "Es incorrecto hacer esto.", // OBLIGATORIO: Si hubo un cambio, debe ser string no nulo
+  "reason": "Correccion de negacion en minuscula para mayor claridad." // OBLIGATORIO: Si hubo un cambio, debe ser string no nulo
 }
 
 4. Salida esperada
 
+TU SALIDA DEBE SER UN OBJETO JSON QUE SIGA EXACTAMENTE LA SIGUIENTE ESTRUCTURA COMPLETA DE RefinementResultSchema. DEBES INCLUIR "item_id" Y "item_refinado" A NIVEL SUPERIOR. "correcciones_realizadas" DEBE SER UNA LISTA DE OBJETOS DE CORRECCION QUE CUMPLAN EL ESQUEMA.
+
 {
-  "item_id": "UUID del item corregido",
-  "item_refinado": {
-    // El objeto ItemPayloadSchema COMPLETO y corregido. DEBES REPRODUCIR TODO EL OBJETO, incluso los campos que no se modificaron.
-    "item_id": "...",
+  "item_id": "UUID_DEL_ITEM_CORREGIDO", // OBLIGATORIO: DEBE SER UN UUID VALIDO Y NO NULO
+  "item_refinado": { // OBLIGATORIO: ESTE ES EL OBJETO ItemPayloadSchema COMPLETO Y CORREGIDO. DEBES REPRODUCIR TODO EL OBJETO, INCLUSO LOS CAMPOS QUE NO SE MODIFICARON.
+    "item_id": "UUID_DEL_ITEM_FINAL", // Asegurarse de que el item_id interno coincida con el superior
     "testlet_id": null,
     "estimulo_compartido": null,
     "metadata": {
       "idioma_item": "es",
-      "area": "...",
-      "asignatura": "...",
-      "tema": "...",
+      "area": "Ciencias",
+      "asignatura": "Biologia",
+      "tema": "Fotosintesis",
       "contexto_regional": null,
-      "nivel_destinatario": "...",
-      "nivel_cognitivo": "...",
-      "dificultad_prevista": "...",
+      "nivel_destinatario": "Media superior",
+      "nivel_cognitivo": "comprender",
+      "dificultad_prevista": "media",
       "referencia_curricular": null,
       "habilidad_evaluable": null
     },
-    "tipo_reactivo": "...",
+    "tipo_reactivo": "opcion multiple",
     "fragmento_contexto": null,
     "recurso_visual": null,
-    "enunciado_pregunta": "...",
+    "enunciado_pregunta": "Este es el enunciado de pregunta corregido.",
     "opciones": [
-      { "id": "a", "texto": "...", "es_correcta": false, "justificacion": "..." },
-      ...
+      {
+        "id": "a",
+        "texto": "Opcion A corregida.",
+        "es_correcta": true,
+        "justificacion": "Justificacion corregida."
+      },
+      {
+        "id": "b",
+        "texto": "Opcion B corregida.",
+        "es_correcta": false,
+        "justificacion": "Justificacion corregida."
+      },
+      {
+        "id": "c",
+        "texto": "Opcion C corregida.",
+        "es_correcta": false,
+        "justificacion": "Justificacion corregida."
+      }
     ],
-    "respuesta_correcta_id": "..."
+    "respuesta_correcta_id": "a"
   },
   "correcciones_realizadas": [
-    // Lista de objetos de correccion aplicadas.
+    {
+      "field": "enunciado_pregunta",
+      "error_code": "W103_HEDGE_STEM",
+      "original": "Seleccione posiblemente la oracion con la coma bien usada.",
+      "corrected": "Selecciona la oracion con la coma bien usada.",
+      "reason": "Eliminacion de hedging innecesario."
+    }
   ]
 }
 
@@ -124,7 +147,7 @@ Por cada cambio realizado, anade una entrada al arreglo correcciones_realizadas:
   "correcciones_realizadas": [
     {
       "field": "enunciado_pregunta",
-      "warning_code": "W103_HEDGE_STEM",
+      "error_code": "W103_HEDGE_STEM",
       "original": "Seleccione posiblemente la oracion con la coma bien usada.",
       "corrected": "Selecciona la oracion con la coma bien usada.",
       "reason": "Eliminacion de hedging innecesario."

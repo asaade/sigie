@@ -1,4 +1,4 @@
-Tu tarea es validar la logica, la precision matematica y la coherencia interna de items de opcion multiple. No debes modificar el item, solo detectar errores criticos que afecten la validez de la respuesta correcta o la claridad del problema.
+Tu tarea es validar la logica, la precision matematica y la coherencia interna de items de opción múltiple. No debes modificar el item, solo detectar errores criticos que afecten la validez de la respuesta correcta o la claridad del problema.
 
 Entrada esperada
 
@@ -63,15 +63,15 @@ Codigos de error comunes
 
 | Codigo                        | Descripcion                                                    | Severidad  |
 |-------------------------------|----------------------------------------------------------------|------------|
-| E070_NO_CORRECT_RATIONALE     | Falta la justificacion de la opcion correcta.                  | fatal      |
-| E071_CALCULO_INCORRECTO       | Resultado incorrecto en la opcion correcta.                    | fatal      |
-| E072_UNIDADES_INCONSISTENTES  | Unidades o magnitudes no coinciden entre enunciado, opciones o justificaciones. | fatal      |
-| E073_CONTRADICCION_INTERNA    | Informacion contradictoria o inconsistencia logica interna en el item. | fatal      |
-| E_NIVEL_COGNITIVO_INAPROPIADO | El item no corresponde al nivel cognitivo Bloom declarado.      | fatal      |
-| E_DESCONOCIDO_LOGICO          | Error logico no clasificado.                                   | fatal      |
-| E012_CORRECT_COUNT            | Debe haber exactamente una opcion correcta.                    | fatal      |
-| E013_ID_NO_MATCH              | respuesta_correcta_id no coincide con la opcion marcada.     | fatal      |
-| E091_CORRECTA_SIMILAR_STEM    | Opcion correcta demasiado similar al stem.                     | fatal      |
+| E070_NO_CORRECT_RATIONALE     | Falta la justificacion de la opcion correcta.                  | error      |
+| E071_CALCULO_INCORRECTO       | Operaciones matemáticas o cálculos incorrectos en la opcion correcta.                    | error      |
+| E072_UNIDADES_INCONSISTENTES  | Unidades o magnitudes no coinciden entre enunciado, opciones o justificaciones. | error      |
+| E073_CONTRADICCION_INTERNA    | Informacion contradictoria o inconsistencia logica interna en el item. | error      |
+| E_NIVEL_COGNITIVO_INAPROPIADO | El item no corresponde al nivel cognitivo Bloom declarado.      | error      |
+| E_DESCONOCIDO_LOGICO          | Error logico no clasificado.                                   | error      |
+| E012_CORRECT_COUNT            | Debe haber exactamente una opcion correcta.                    | error      |
+| E013_ID_NO_MATCH              | respuesta_correcta_id no coincide con la opcion marcada.     | error      |
+| E091_CORRECTA_SIMILAR_STEM    | Opcion correcta demasiado similar al stem.                     | error      |
 
 Restricciones
 
@@ -79,7 +79,7 @@ Restricciones
 * No generes explicaciones fuera del objeto JSON.
 * No emitas juicios sobre estilo, lenguaje o redaccion.
 
-Ejemplo de salida (es solo un ejemplo, no lo devuelvas)
+Ejemplo de salida (este es solo un ejemplo, no lo devuelvas igual)
 
 {
   "item_id": "abc-123",
@@ -89,13 +89,13 @@ Ejemplo de salida (es solo un ejemplo, no lo devuelvas)
       "code": "E071_CALCULO_INCORRECTO",
       "message": "La opcion correcta contiene un calculo equivocado",
       "field": null,
-      "severity": "fatal"
+      "severity": "error"
     },
     {
       "code": "E013_ID_NO_MATCH",
       "message": "El campo respuesta_correcta_id no coincide con la opcion correcta marcada",
       "field": null,
-      "severity": "fatal"
+      "severity": "error"
     }
   ]
 }

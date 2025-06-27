@@ -45,5 +45,3 @@ class ValidatePolicyStage(LLMStage): # Convertido a clase que hereda de LLMStage
             summary = f"Policy validation failed. {len(result.findings)} issues found."
             self._set_status(item, "fail", summary) # Usar _set_status de BaseStage
             self.logger.warning(f"Item {item.temp_id} failed policy validation. Findings: {result.findings}")
-
-    # ELIMINADO: _get_custom_parser_func. Ahora la utilidad LLM hará el parseo directo.

@@ -1,13 +1,11 @@
 # app/schemas/item_schemas.py
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import List, Optional, Literal, Dict, Any
 from uuid import UUID
 from enum import Enum
 
 from pydantic import BaseModel, Field, HttpUrl, validator
-
-# ELIMINADO: from app.pipelines.runner import run as run_pipeline # <--- ¡ESTA LÍNEA ES LA CAUSA DEL ERROR Y HA SIDO ELIMINADA!
 
 class TipoRecursoVisual(str, Enum):
     GRAFICO = 'grafico'
@@ -95,7 +93,7 @@ class ReportEntrySchema(BaseModel):
     code: str = Field(..., max_length=150)
     message: str = Field(..., max_length=2000) # Límite aumentado a 2000
     field: Optional[str] = Field(None, max_length=300)
-    severity: Literal['error', 'warning']
+    severity: Literal['fatal', 'error', 'warning'] # MODIFICADO: Añadido 'fatal'
 
     class Config:
         frozen = True

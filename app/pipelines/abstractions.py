@@ -27,7 +27,6 @@ class BaseStage(ABC):
         self.params = params
         self.logger = logging.getLogger(f"app.pipelines.{self.stage_name}")
 
-        # Asegurarse de que el nombre del proveedor LLM esté en el contexto desde el inicio
         if "provider" in self.params:
             self.ctx["llm_provider_name"] = self.params["provider"]
 
@@ -36,16 +35,33 @@ class BaseStage(ABC):
         """El punto de entrada que el runner llamará para ejecutar la etapa."""
         raise NotImplementedError
 
-    def _set_status(self, item: Item, outcome: str, summary: str = ""): # ¡ESTE MÉTODO DEBE ESTAR PRESENTE!
+    def _set_status(self, item: Item, outcome: str, summary: str = ""):
         """
         Helper para estandarizar la actualización de estado y la auditoría.
         Genera un estado como 'validate_logic.success' o 'refine_policy.fail'.
+        Si alguna de las findings acumuladas tiene severidad 'fatal',
+        o si el outcome explícito de la etapa es 'fatal',
+        el estado global del ítem se marca como 'fatal_error'.
         """
-        new_status = f"{self.stage_name}.{outcome}"
+        new_status_for_audit = f"{self.stage_name}.{outcome}" # Este es el status especifico de la etapa
         final_summary = summary or f"Stage completed with outcome '{outcome}'."
         final_summary = final_summary[:MAX_AUDIT_SUMMARY_LENGTH]
 
-        update_item_status_and_audit(item, self.stage_name, new_status, final_summary)
+        # Comprobar si existen findings con severidad 'fatal' en el ítem
+        has_fatal_finding = any(f.severity == "fatal" for f in item.findings)
+
+        # Si el outcome de la etapa es "fatal" (para stages que lo pongan directamente, ej. hard_validate)
+        # O si se encuentra un finding con severidad "fatal" entre los acumulados
+        if outcome == "fatal" or has_fatal_finding:
+            item.status = "fatal_error" # Sobrescribe el estado global del item
+            summary_for_audit = f"Error fatal: {final_summary}" if summary else "Error fatal detectado, ítem no recuperable."
+            self.logger.error(f"Item {item.temp_id} set to FATAL_ERROR status in {self.stage_name}.")
+        else: # Si no es un error fatal, se usa el estado normal de la etapa
+            item.status = new_status_for_audit # Mantiene el status especifico de la etapa
+            summary_for_audit = final_summary
+            self.logger.info(f"Item {item.temp_id} in {self.stage_name} status updated to: {item.status}.")
+
+        update_item_status_and_audit(item, self.stage_name, item.status, summary_for_audit)
 
 
 class LLMStage(BaseStage):
@@ -58,8 +74,7 @@ class LLMStage(BaseStage):
         self.prompt_name = self.params.get("prompt")
         if not self.prompt_name:
             raise ValueError(f"Stage '{self.stage_name}' requires a 'prompt' in its params.")
-        # Valida la existencia del prompt en la inicialización para un fallo temprano
-        load_prompt(self.prompt_name)
+        load_prompt(self.prompt_name) # Valida la existencia del prompt en la inicialización para un fallo temprano
 
     async def execute(self, items: List[Item]) -> List[Item]:
         """
@@ -70,10 +85,12 @@ class LLMStage(BaseStage):
 
         items_to_process = []
         if listen_status:
-            items_to_process = [item for item in items if item.status.endswith(listen_status)]
+            # Filtra ítems que no están en fatal_error y cumplen el patrón de escucha
+            items_to_process = [item for item in items if item.status != "fatal_error" and item.status.endswith(listen_status)]
             if items_to_process:
                 self.logger.info(f"Found {len(items_to_process)} items with status matching '{listen_status}' to process.")
         else:
+            # Filtra ítems que no están en fatal_error, .fail, o .error
             items_to_process = [item for item in items if item.status != "fatal_error" and not item.status.endswith((".fail", ".error"))]
 
         if items_to_process:
@@ -88,6 +105,7 @@ class LLMStage(BaseStage):
             return
 
         if not item.payload:
+            # handle_missing_payload ahora marca el ítem como "fatal_error"
             handle_missing_payload(
                 item, self.stage_name, "NO_PAYLOAD", "Item has no payload for processing.",
                 f"{self.stage_name}.fail.no_payload", "Skipped: No payload to process."
@@ -98,8 +116,6 @@ class LLMStage(BaseStage):
             llm_input = self._prepare_llm_input(item)
             schema = self._get_expected_schema()
 
-            # Extraer parámetros de configuración del LLM de self.params
-            # y pasarlos explícitamente a call_llm_and_parse_json_result
             model_param = self.params.get("model")
             temperature_param = self.params.get("temperature")
             max_tokens_param = self.params.get("max_tokens")
@@ -127,21 +143,21 @@ class LLMStage(BaseStage):
             if llm_errors:
                 item.findings.extend(llm_errors)
                 error_summary = f"LLM utility failed: {llm_errors[0].message}"
-                self.logger.warning(f"For item {item.temp_id}, {error_summary}")
-                self._set_status(item, "fail.utility_error", error_summary)
+                llm_outcome = "fatal" if any(err.severity == "fatal" for err in llm_errors) else "error"
+                self._set_status(item, llm_outcome, error_summary)
+                self.logger.warning(f"For item {item.temp_id}, {error_summary}. Outcome: {llm_outcome}")
             elif result:
                 await self._process_llm_result(item, result)
-                self._clean_llm_findings_on_success(item)
+                self._clean_llm_findings_on_success(item) # Este método ahora estará en la clase base
             else:
-                summary = "LLM did not return a valid result. This strongly suggests the prompt's output format does not match the expected Pydantic schema."
+                summary = "LLM did not return a valid result or parsing failed to produce expected schema. This is a critical error."
                 self.logger.error(f"CRITICAL FAILURE for item {item.temp_id} in stage {self.stage_name}: {summary}")
-                self._set_status(item, "fail.no_result", summary)
-
+                self._set_status(item, "fatal", summary)
         except Exception as e:
             self.logger.error(f"Unexpected error in stage {self.stage_name} for item {item.temp_id}: {e}", exc_info=True)
-            self._set_status(item, "fail.unexpected_error", str(e))
+            self._set_status(item, "fatal", str(e))
 
-    def _clean_llm_findings_on_success(self, item: Item) -> None:
+    def _clean_llm_findings_on_success(self, item: Item) -> None: # CRÍTICO: MÉTODO AÑADIDO A LA CLASE BASE
         """
         Limpia los hallazgos del ítem que son generados por fallos de la utilidad LLM/parseo,
         una vez que el _process_llm_result de la etapa fue exitoso.
@@ -150,7 +166,7 @@ class LLMStage(BaseStage):
             f for f in item.findings
             if not (
                 f.code.startswith("LLM_CALL_FAILED") or
-                f.code.startswith("LLM_PARSE_VALIDATION_ERROR") == "true" or # Note: Changed to == "true" for strict comparison
+                f.code.startswith("LLM_PARSE_VALIDATION_ERROR") == "true" or
                 f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
                 f.code.startswith("NO_LLM_")
             )

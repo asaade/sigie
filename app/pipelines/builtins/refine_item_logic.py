@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item
-from app.schemas.item_schemas import RefinementResultSchema, ReportEntrySchema
+from app.schemas.item_schemas import RefinementResultSchema
 from app.pipelines.abstractions import LLMStage
 from ..utils.stage_helpers import clean_specific_errors, handle_item_id_mismatch_refinement
 
@@ -27,15 +27,14 @@ class RefineLogicStage(LLMStage):
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
-        Prepara el input para el LLM. Envía el ítem junto con la lista de
-        problemas (filtrando solo los de severidad 'error') que el LLM debe solucionar.
+        Prepara el string de input para el LLM.
         """
-        # ▼▼▼ CAMBIO PRINCIPAL AQUÍ: Leemos desde 'item.findings' ▼▼▼
-        logic_errors_to_fix = [f for f in item.findings if f.severity == 'error']
+        logic_problems_to_fix = [f for f in item.findings if f.severity == 'error'] # O el criterio que uses para filtrar para el LLM
 
         input_payload = {
-            "item": item.payload.model_dump(),
-            "problems": [err.model_dump() for err in logic_errors_to_fix]
+            "item_id": str(item.payload.item_id), # CAMBIO CRÍTICO: Convertir UUID a string
+            "item_payload": item.payload.model_dump(mode="json"),
+            "problems": [p.model_dump(mode="json") for p in logic_problems_to_fix]
         }
         return json.dumps(input_payload, indent=2, ensure_ascii=False)
 

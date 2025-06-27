@@ -37,18 +37,7 @@ stages:
       # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior (ahora es un patrón)
 
-  # 4. Etapa de corrección de estilo directa
-  - name: refine_item_style # Nombre de la clase RefineStyleStage
-    params:
-      prompt: "04_agente_refinador_estilo.md"
-      provider: ollama # Ejemplo: Usar OpenAI para corrección de estilo
-      model: llama3.2
-      temperature: 0.5 # Moderada creatividad para estilo
-      max_tokens: 2000
-      # Esta etapa actuará sobre ítems que no estén en fatal_error o fail/error, o que contengan warnings de validate_soft.
-      # listen_to_status_pattern: ".success" # Podría ser un patrón más complejo para elegir items a refinar. Por defecto, procesará todos los no-fallidos.
-
-  # 5. Ciclo de validación y refinamiento de políticas
+  # 4. Ciclo de validación y refinamiento de políticas
   - name: validate_policy # Nombre de la clase ValidatePolicyStage (Validador)
     params:
       prompt: "05_agent_politicas.md"
@@ -66,10 +55,23 @@ stages:
       max_tokens: 2500
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
 
-  # 6. Validación programática de reglas suaves (advertencias)
+  # 5. Validación programática de reglas suaves (advertencias)
   - name: validate_soft # Nombre de la clase ValidateSoftStage
     # Esta etapa no usa LLM directamente, su lógica es programática.
     # Solo emite warnings, no cambia el estado a .fail si no hay errores previos.
+
+  # 6. Etapa de corrección de estilo directa
+  - name: refine_item_style # Nombre de la clase RefineStyleStage
+    params:
+      prompt: "04_agente_refinador_estilo.md"
+      provider: ollama # Ejemplo: Usar OpenAI para corrección de estilo
+      model: llama3.2
+      temperature: 0.5 # Moderada creatividad para estilo
+      max_tokens: 2000
+      # Esta etapa actuará sobre ítems que hayan pasado las etapas anteriores
+      # (no estén en fatal_error o fail/error, y contengan warnings de validate_soft para actuar sobre ellos).
+      # Al no tener un listen_to_status_pattern específico, procesará todos
+      # los ítems que no estén en estado fatal/error.
 
   # 7. Etapa de evaluación final por un LLM
   - name: finalize_item # Nombre de la clase FinalizeItemStage

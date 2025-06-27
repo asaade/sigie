@@ -1,22 +1,19 @@
 # app/pipelines/utils/stage_helpers.py
 
 import logging
-from typing import List, Optional # Dict, Any, Type, Tuple ya no son necesarios
+from typing import List, Optional
 from uuid import UUID, uuid4
+from datetime import datetime
 
 from app.schemas.models import Item
-# AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema, TipoReactivo, RecursoVisualSchema
-# Se importan explícitamente solo los que se usan como tipos a nivel superior o en initialize_items_for_pipeline
-from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema, RecursoVisualSchema # TipoReactivo eliminado
+from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema, RecursoVisualSchema
 
-# BaseModel no es necesario aquí si se usa Type[RecursoVisualSchema] en lugar de Type[BaseModel]
-# from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 def skip_if_terminal_error(item: Item, stage_name: str) -> bool:
     """
-    Verifica si un ítem ya está en un estado fatal y, si es así,
+    Verifica si un ítem ya está en un estado fatal_error global y, si es así,
     añade una entrada de auditoría y retorna True para omitirlo.
     """
     if item.status == "fatal_error":
@@ -39,6 +36,7 @@ def add_audit_entry(
     item.audits.append(
         AuditEntrySchema(
             stage=stage_name,
+            timestamp=datetime.now(),
             summary=summary,
             corrections=corrections or []
         )
@@ -62,6 +60,7 @@ def update_item_status_and_audit(
     )
     logger.info(f"Item {item.temp_id} in {stage_name} status updated to: {item.status}. Summary: {summary_msg}")
 
+
 def handle_prompt_not_found_error(items: List[Item], stage_name: str, prompt_name: str, e: FileNotFoundError) -> List[Item]:
     """Maneja el error de prompt no encontrado, marca los ítems como fatales."""
     error_msg = f"Prompt '{prompt_name}' not found for stage '{stage_name}': {e}"
@@ -75,9 +74,9 @@ def handle_prompt_not_found_error(items: List[Item], stage_name: str, prompt_nam
         item.findings.append(
             ReportEntrySchema(
                 code="PROMPT_NOT_FOUND",
-                message=error_msg,
+                message=error_msg[:900],
                 field="prompt_name",
-                severity="error"
+                severity="fatal" # MODIFICADO: A fatal
             )
         )
     logger.error(error_msg)
@@ -86,9 +85,9 @@ def handle_prompt_not_found_error(items: List[Item], stage_name: str, prompt_nam
 def handle_missing_payload(item: Item, stage_name: str, error_code: str, message: str, status: str, summary: str) -> None:
     """Maneja el caso donde el payload del ítem está ausente para una etapa."""
     item.findings.append(
-        ReportEntrySchema(code=error_code, message=message, severity="error")
+        ReportEntrySchema(code=error_code, message=message, severity="fatal") # MODIFICADO: A fatal
     )
-    update_item_status_and_audit(item, stage_name, status, summary)
+    update_item_status_and_audit(item, stage_name, "fatal_error", summary) # MODIFICADO: A fatal_error
     logger.warning(f"Item {item.temp_id} skipped in {stage_name}: {summary}.")
 
 def handle_item_id_mismatch_refinement(
@@ -96,38 +95,30 @@ def handle_item_id_mismatch_refinement(
     stage_name: str,
     expected_id: UUID,
     received_id: UUID,
-    status_on_fail: str,
+    status_on_fail: str, # Este parámetro puede volverse redundante si siempre es fatal_error
     summary_msg: str
 ) -> None:
     """Maneja el error de item_id no coincidente en la respuesta de refinamiento del LLM."""
     error_msg = f"Mismatched item_id in LLM response. Expected {expected_id}, got {received_id}."
     item.findings.append(
-        ReportEntrySchema(code="ITEM_ID_MISMATCH", message=error_msg, field="item_id", severity="error")
+        ReportEntrySchema(code="ITEM_ID_MISMATCH", message=error_msg[:900], field="item_id", severity="fatal") # MODIFICADO: A fatal
     )
-    update_item_status_and_audit(item, stage_name, status_on_fail, summary_msg)
+    update_item_status_and_audit(item, stage_name, "fatal_error", summary_msg) # MODIFICADO: A fatal_error
     logger.error(f"Item ID mismatched for item {item.temp_id} in {stage_name}: {error_msg}")
 
 
 def clean_item_llm_errors(item: Item) -> None:
     """
-    Limpia los errores y advertencias del ítem que son generados por llamadas/parseo de LLM.
+    Limpia los hallazgos del ítem que son generados por fallos de llamadas/parseo de LLM.
+    Asume que todos los hallazgos de LLM están en item.findings.
     """
-    item.errors = [
-        err for err in item.errors
+    item.findings = [
+        f for f in item.findings
         if not (
-            err.code.startswith("LLM_CALL_FAILED") or
-            err.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
-            err.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
-            err.code.startswith("NO_LLM_")
-        )
-    ]
-    item.warnings = [
-        warn for warn in item.warnings
-        if not (
-            warn.code.startswith("LLM_CALL_FAILED") or
-            warn.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
-            warn.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
-            warn.code.startswith("NO_LLM_")
+            f.code.startswith("LLM_CALL_FAILED") or
+            f.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
+            f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
+            f.code.startswith("NO_LLM_")
         )
     ]
 
@@ -146,10 +137,7 @@ def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]
     items: List[Item] = []
 
     try:
-        # UserGenerateParams es un BaseModel, y UserGenerateParams.model_validate
-        # devolverá una instancia de UserGenerateParams. No se necesita .model_dump() aquí.
-        # Si UserGenerateParams ya fue validado en el router, simplemente lo usamos.
-        validated_user_params = user_params # Ya viene validado desde el router
+        validated_user_params = user_params
         n_items = validated_user_params.n_items
     except Exception as e:
         logger.error(f"Error validating UserGenerateParams during pipeline initialization: {e}", exc_info=True)
@@ -172,12 +160,9 @@ def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]
         recurso_visual_obj = None
         if validated_user_params.recurso_visual:
             try:
-                # model_validate en un Dict exige que el Dict tenga el formato exacto del esquema.
-                # Si el user_params.recurso_visual es ya un RecursoVisualSchema (por validación previa), usarlo directamente.
-                # Si es un dict, validarlo.
                 if isinstance(validated_user_params.recurso_visual, dict):
                     recurso_visual_obj = RecursoVisualSchema.model_validate(validated_user_params.recurso_visual)
-                else: # Ya es RecursoVisualSchema object
+                else:
                     recurso_visual_obj = validated_user_params.recurso_visual
             except Exception as e:
                 logger.warning(f"Error validating recurso_visual from user_params during item initialization: {e}. Setting to None.")
