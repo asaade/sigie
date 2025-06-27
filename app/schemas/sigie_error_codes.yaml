@@ -1,212 +1,283 @@
 # Catálogo centralizado de errores y advertencias para el sistema SIGIE
 
+# ERRORES DE ESTILO: Problemas de formato, redacción o convención que afectan la legibilidad o estética.
 ESTILO:
   - code: E020_STEM_LENGTH
-    message: Stem excede límite de longitud.
+    message: Enunciado excede límite de longitud.
     fix_hint: Recortar el enunciado sin perder claridad.
-    severity: fatal
+    severity: fatal # Un ítem muy largo podría ser inmanejable.
 
   - code: E040_OPTION_LENGTH
     message: Alguna opción excede el límite de longitud.
     fix_hint: Acortar el texto de la opción.
-    severity: fatal
+    severity: fatal # Opciones muy largas pueden romper la visualización o el parseo.
 
   - code: E080_MATH_FORMAT
-    message: Unicode y LaTeX mezclados para el mismo símbolo.
-    fix_hint: Usar solo Unicode o solo LaTeX.
-    severity: fatal
+    message: Unicode y LaTeX mezclados para el mismo símbolo o formato matemático inconsistente.
+    fix_hint: Usar solo Unicode o solo LaTeX de forma consistente en el mismo ítem.
+    severity: fatal # Inconsistencia de formato que podría romper renderizado o interpretación.
+
+  - code: W101_STEM_NEG_LOWER
+    message: Negación en minúscula en el enunciado; debería ir en MAYÚSCULAS.
+    fix_hint: Reformular en positivo o poner la negación en mayúsculas.
+    severity: warning # Recomendación estilística para claridad.
 
   - code: W104_OPT_LEN_VAR
-    message: Longitud de opciones varía demasiado.
-    fix_hint: Igualar la longitud aproximada de las opciones.
-    severity: warn
+    message: Variación excesiva en la longitud de las opciones.
+    fix_hint: Igualar la longitud aproximada de las opciones para evitar pistas.
+    severity: warning # Problema de sesgo visual sutil, no rompe la validez.
 
   - code: W105_LEXICAL_CUE
-    message: Pista léxica. palabra clave del stem solo en la correcta.
-    fix_hint: Añadir esa palabra a un distractor o reformular el stem.
-    severity: warn
+    message: Pista léxica: palabra clave del enunciado solo presente en la opción correcta.
+    fix_hint: Añadir esa palabra clave a un distractor o reformular el enunciado/opción.
+    severity: warning # Pista sutil que reduce la dificultad, no es un error de contenido.
 
   - code: W109_PLAUSIBILITY
-    message: Distractor demasiado absurdo.
-    fix_hint: Ajustar distractor a error conceptual plausible.
-    severity: warn
+    message: Distractor es demasiado absurdo o fácilmente descartable.
+    fix_hint: Ajustar el distractor para que represente un error conceptual plausible.
+    severity: warning # Afecta la calidad psicométrica del distractor, pero no es un error de validez.
 
   - code: W110_REPEATED_KEY
-    message: Misma letra correcta repetida más de lo recomendable.
-    fix_hint: Cambiar la letra correcta para rotar posiciones.
-    severity: warn
+    message: La misma letra de opción correcta repetida más de lo recomendable en una secuencia.
+    fix_hint: Cambiar la letra correcta para rotar posiciones y asegurar distribución.
+    severity: warning # Patrón predecible, afecta la psicometría, no la validez.
 
   - code: W112_DISTRACTOR_SIMILAR
-    message: Dos o más distractores son demasiado similares entre sí.
-    fix_hint: Representar errores alternativos o reformular.
-    severity: warn
+    message: Dos o más distractores son semánticamente demasiado similares entre sí.
+    fix_hint: Reformular los distractores para que representen errores alternativos distintos.
+    severity: warning # Debilita los distractores, pero no es un error de contenido.
 
-  - code: W113
-    message: Cuantificador vago detectado en el enunciado.
+  - code: W113_VAGUE_QUANTIFIER
+    message: Cuantificador vago detectado en el enunciado (ej. 'algunos', 'muchos') sin justificación precisa.
     fix_hint: Sustituir por un cuantificador más preciso o reformular.
-    severity: warn
+    severity: warning # Afecta la claridad, pero no necesariamente la corrección.
 
+  - code: W123_CONTENIDO_TRIVIAL
+    message: Lenguaje o tono inadecuado para un contexto académico en el ítem.
+    fix_hint: Ajustar el lenguaje para que sea formal y apropiado al contexto académico.
+    severity: warning # Afecta la profesionalidad, pero no la validez.
+
+  - code: W125_DESCRIPCION_DEFICIENTE
+    message: Descripción visual (ej. 'descripción' en RecursoVisual) poco informativa.
+    fix_hint: Mejorar la descripción del recurso visual para que sea más informativa.
+    severity: warning # Falta de detalle, no rompe la funcionalidad.
+
+# ERRORES LOGICOS: Problemas de coherencia interna, precisión matemática, o validez conceptual.
 LOGICO:
   - code: E070_NO_CORRECT_RATIONALE
     message: Falta la justificación de la opción correcta.
-    fix_hint: Añadir texto explicativo en 'justificacion'.
-    severity: fatal
+    fix_hint: Añadir texto explicativo en 'justificacion' de la opción correcta.
+    severity: error # Reclasificado: Corregible por refinador.
 
   - code: E071_CALCULO_INCORRECTO
-    message: Resultado incorrecto en la opción correcta.
-    fix_hint: Verificar procedimiento matemático.
-    severity: fatal
+    message: Operaciones matemáticas o cálculos incorrectos en la opción correcta.
+    fix_hint: Verificar procedimiento matemático y resultado final.
+    severity: error # Reclasificado: Corregible por refinador.
 
   - code: E072_UNIDADES_INCONSISTENTES
     message: Unidades o magnitudes no coinciden entre enunciado, opciones o justificaciones.
-    fix_hint: Asegurar consistencia de unidades.
-    severity: fatal
+    fix_hint: Asegurar consistencia de unidades y magnitudes en todo el ítem.
+    severity: error # Reclasificado: Corregible por refinador.
 
   - code: E073_CONTRADICCION_INTERNA
     message: Información contradictoria o inconsistencia lógica interna en el ítem.
-    fix_hint: Revisar y corregir la coherencia de datos y principios.
-    severity: fatal
+    fix_hint: Revisar y corregir la coherencia de datos, principios y afirmaciones.
+    severity: fatal # Muy difícil de corregir de forma fiable por LLM.
 
-  - code: E_NIVEL_COGNITIVO_INAPROPIADO
-    message: El ítem no corresponde al nivel cognitivo Bloom declarado.
+  - code: E074_NIVEL_COGNITIVO_INAPROPIADO
+    message: El ítem no corresponde al nivel cognitivo de la Taxonomía de Bloom declarado.
     fix_hint: Ajustar el nivel declarado o reformular el ítem para que coincida.
-    severity: fatal
+    severity: fatal # Muy difícil de corregir de forma fiable por LLM.
 
-  - code: E_DESCONOCIDO_LOGICO
+  - code: E075_DESCONOCIDO_LOGICO
     message: Error lógico no clasificado.
-    fix_hint: Revisar manualmente la lógica del ítem.
-    severity: fatal
+    fix_hint: Revisar manualmente la lógica del ítem para identificar el problema.
+    severity: fatal # Por definición, difícil de corregir.
 
-  - code: W106_TODAS_NINGUNA
-    message: Se usó 'todas/ninguna de las anteriores'.
-    fix_hint: Sustituir por distractor específico.
-    severity: warn
+  - code: E106_COMPLEX_OPTION_TYPE
+    message: Se usó 'todas las anteriores', 'ninguna de las anteriores' o combinaciones (ej. 'Solo A y B').
+    fix_hint: Sustituir por distractores específicos o reformular las opciones.
+    severity: error # Antipatrón psicométrico que debe ser corregido, aunque no fatal.
 
+# ERRORES GENERALES: Problemas estructurales o de formato general del JSON.
 GENERAL:
   - code: E001_SCHEMA
-    message: El JSON no cumple el esquema.
-    fix_hint: Regenerar el ítem aplicando el esquema vigente.
-    severity: fatal
+    message: La estructura JSON del ítem no cumple el esquema Pydantic.
+    fix_hint: Regenerar el ítem aplicando estrictamente el esquema vigente.
+    severity: fatal # Impide el procesamiento del ítem.
 
   - code: E010_NUM_OPTIONS
-    message: El número de opciones debe ser 3 o 4.
-    fix_hint: Ajustar a 3 o 4 objetos.
-    severity: fatal
+    message: El número de opciones debe ser exactamente 3 o 4.
+    fix_hint: Ajustar a 3 o 4 objetos de opción.
+    severity: fatal # Invalida el formato estándar.
 
   - code: E011_DUP_ID
     message: IDs de opciones duplicados.
-    fix_hint: Usar IDs únicos ('a'-'d').
-    severity: fatal
+    fix_hint: Usar IDs únicos ('a', 'b', 'c', 'd') para cada opción.
+    severity: fatal # Rompe la identificación única de opciones.
 
   - code: E012_CORRECT_COUNT
-    message: Debe haber exactamente una opción correcta.
+    message: Debe haber exactamente una opción marcada como correcta.
     fix_hint: Dejar solo una opción con 'es_correcta:true'.
-    severity: fatal
+    severity: fatal # Invalida el concepto de opción múltiple de respuesta única.
 
   - code: E013_ID_NO_MATCH
-    message: respuesta_correcta_id no coincide con la opción marcada.
-    fix_hint: Sincronizar campo con la opción correcta.
-    severity: fatal
+    message: El 'respuesta_correcta_id' no coincide con la opción marcada como correcta.
+    fix_hint: Sincronizar el campo 'respuesta_correcta_id' con el 'id' de la opción correcta.
+    severity: fatal # Inconsistencia que invalida la respuesta.
 
   - code: E030_COMPLET_SEGMENTS
-    message: Segmentos no coinciden con los huecos.
-    fix_hint: Alinear segmentos de opciones con los huecos del enunciado.
-    severity: fatal
+    message: En tipo 'completamiento', el número de segmentos de la opción no coincide con los huecos del enunciado.
+    fix_hint: Alinear el número de segmentos de las opciones con los huecos ('___') del enunciado.
+    severity: fatal # Invalida el formato del tipo de reactivo.
 
   - code: E050_BAD_URL
-    message: 'referencia' no es una URL válida.
-    fix_hint: Proveer URL accesible o dejar el recurso visual en null.
-    severity: fatal
+    message: La URL en 'recurso_visual.referencia' no es una URL válida o accesible.
+    fix_hint: Proveer una URL accesible o dejar el 'recurso_visual' en null.
+    severity: fatal # Recurso roto, impide la usabilidad.
 
   - code: E060_MULTI_TESTLET
-    message: estimulo_compartido exige testlet_id y viceversa.
-    fix_hint: Sincronizar ambos campos de testlet.
-    severity: fatal
+    message: 'estimulo_compartido' exige 'testlet_id' y viceversa; o ambos están presentes sin ser tipo testlet.
+    fix_hint: Sincronizar ambos campos o eliminar si no es un testlet.
+    severity: fatal # Inconsistencia en la estructura de testlets.
 
   - code: E091_CORRECTA_SIMILAR_STEM
-    message: Opción correcta demasiado similar al stem.
-    fix_hint: Reformular enunciado u opción para evitar pista.
-    severity: fatal
+    message: Opción correcta es semánticamente demasiado similar al enunciado, revelando la respuesta.
+    fix_hint: Reformular enunciado u opción para evitar la pista léxica obvia.
+    severity: error # Reclasificado: Corregible por refinador.
 
-  - code: W101_STEM_NEG_LOWER
-    message: Negación en minúscula; debe ir en MAYÚSCULAS.
-    fix_hint: Reformular en positivo o poner en mayúsculas.
-    severity: warn
-
-FINAL:
-  - code: W111_FRAG_LEN
-    message: fragmento_contexto excede 100 palabras.
-    fix_hint: Resumir o mover a estimulo_compartido.
-    severity: warn
-
-  - code: F_INCONSISTENCIA_LOGICO_ESTILO
-    message: La justificación contradice el enunciado o contexto.
-    fix_hint: Revisar justificación o enunciado.
-    severity: fatal
-
-  - code: F_TONO_DESIGUAL
-    message: Diferencias de tono o registro entre campos.
-    fix_hint: Unificar estilo entre campos.
-    severity: warn
-
-  - code: F_NIVEL_COGNITIVO_AFECTADO
-    message: El ítem no coincide con el nivel Bloom declarado tras las correcciones.
-    fix_hint: Ajustar nivel o reformular ítem.
-    severity: fatal
-
-  - code: F_FORMATO_NO_UNIFORME
-    message: Desbalance o estructura inconsistente.
-    fix_hint: Homogeneizar estructura de opciones.
-    severity: warn
-
+# ERRORES DE POLÍTICAS: Problemas relacionados con sesgos, inclusión, accesibilidad o contenido prohibido.
 POLITICAS:
   - code: E090_PROFANITY
-    message: Contenido ofensivo o prohibido.
-    fix_hint: Reescribir siguiendo políticas.
-    severity: fatal
+    message: Contenido ofensivo o prohibido detectado en el ítem.
+    fix_hint: Reescribir el contenido respetando las políticas de uso.
+    severity: fatal # Contenido inaceptable, debe ser descartado.
+
+  - code: E120_SESGO_GENERO
+    message: Lenguaje con sesgo de género.
+    fix_hint: Usar formulaciones neutras e inclusivas para eliminar el sesgo.
+    severity: error # Problema ético y de equidad que debe ser corregido.
+
+  - code: E121_CULTURAL_EXCL
+    message: Referencia cultural o regional excluyente.
+    fix_hint: Usar ejemplos o referencias accesibles a una diversidad de estudiantes.
+    severity: error # Problema de equidad y accesibilidad que debe ser corregido.
+
+  - code: E122_SESGO_NOMBRE
+    message: Nombre propio con posible sesgo (ej. por etnia, origen).
+    fix_hint: Sustituir nombres por otros más neutros o variados.
+    severity: error # Problema de equidad que debe ser corregido.
+
+  - code: E124_SESGO_IMAGEN
+    message: Imagen o recurso visual con sesgo implícito (ej. cultural, género).
+    fix_hint: Reemplazar o ajustar el recurso visual para eliminar el sesgo.
+    severity: error # Problema de equidad que debe ser corregido.
+
+  - code: E126_REFERENCIA_INVALIDA
+    message: URL de referencia del recurso visual no válida o inaccesible.
+    fix_hint: Proveer una URL válida y accesible o eliminar la referencia.
+    severity: error # Problema funcional que debe ser corregido.
 
   - code: W102_ABSOL_STEM
-    message: Absoluto injustificado (ej. siempre, nunca).
-    fix_hint: Sustituir o matizar el absoluto.
-    severity: warn
+    message: Uso de absolutos injustificados (ej. "siempre", "nunca") en el enunciado.
+    fix_hint: Sustituir o matizar el absoluto con términos más precisos.
+    severity: warning # Afecta la precisión, pero no siempre es un error.
 
   - code: W103_HEDGE_STEM
-    message: Hedging innecesario (ej. quizá, algunos).
-    fix_hint: Eliminar o aportar dato exacto.
-    severity: warn
+    message: Hedging innecesario (ej. "quizá", "algunos") en el enunciado que reduce la precisión.
+    fix_hint: Eliminar el hedging o aportar un dato exacto si es posible.
+    severity: warning # Afecta la precisión, pero no siempre es un error.
 
   - code: W107_COLOR_ALT
-    message: alt_text menciona colores sin codificar información.
-    fix_hint: Eliminar referencias a color irrelevantes.
-    severity: warn
+    message: alt_text menciona colores sin codificar información relevante para la accesibilidad.
+    fix_hint: Eliminar referencias a color irrelevantes o describir la información codificada.
+    severity: warning # Problema de accesibilidad menor, si la info no es crítica.
 
   - code: W108_ALT_VAGUE
-    message: alt_text vago o genérico.
-    fix_hint: Describir tendencia o propósito del recurso.
-    severity: warn
+    message: alt_text vago o genérico para el recurso visual.
+    fix_hint: Describir la tendencia, propósito o elementos clave del recurso visual.
+    severity: warning # Falta de detalle, afecta la accesibilidad, no rompe la funcionalidad.
 
-  - code: W120_SESGO_GENERO
-    message: Lenguaje con sesgo de género.
-    fix_hint: Usar formulaciones neutras e inclusivas.
-    severity: warn
+# ERRORES DE SISTEMA LLM / CALIDAD DE GENERACIÓN: Problemas en la interacción o salida fundamental del LLM.
+LLM_SISTEMA:
+  - code: E901_LLM_GEN_QUALITY_LOW
+    message: El contenido generado por el LLM es de muy baja calidad, incoherente, o "basura" (gibberish).
+    fix_hint: Reintentar la generación o ajustar el prompt/modelo.
+    severity: fatal # Contenido irrecuperable.
 
-  - code: W121_CULTURAL_EXCL
-    message: Referencia cultural excluyente.
-    fix_hint: Usar ejemplos accesibles a diversidad de estudiantes.
-    severity: warn
-  - code: W_CONTENIDO_TRIVIAL
-    message: Lenguaje o tono inadecuado para contexto academico.
-    fix_hint: Ajustar lenguaje para que sea formal y adecuado al contexto academico.
-    severity: warn
-  - code: W_SESGO_IMAGEN
-    message: Imagen o recurso visual con sesgo implicito.
-    fix_hint: Reemplazar o ajustar recurso visual para eliminar el sesgo.
-    severity: warn
-  - code: W_DESCRIPCION_DEFICIENTE
-    message: Descripcion visual poco informativa.
-    fix_hint: Mejorar la descripcion del recurso visual para que sea mas informativa.
-    severity: warn
-  - code: W_REFERENCIA_INVALIDA
-    message: URL de referencia no valida o inaccesible.
-    fix_hint: Proveer una URL valida y accesible o eliminar la referencia.
-    severity: warn
+  - code: E902_LLM_CONTEXT_OVERFLOW
+    message: El contexto de entrada para el LLM excedió el límite de tokens del modelo.
+    fix_hint: Reducir el tamaño del input o usar un modelo con mayor ventana de contexto.
+    severity: fatal # Fallo en la llamada LLM por límites.
+
+  - code: E903_LLM_SAFETY_VIOLATION
+    message: El contenido generado por el LLM violó las políticas de seguridad/moderación.
+    fix_hint: Revisar el prompt para evitar la generación de contenido sensible.
+    severity: fatal # Contenido prohibido o peligroso.
+
+  - code: E904_NO_LLM_JSON_RESPONSE
+    message: El LLM no devolvió una respuesta JSON válida o estaba vacía.
+    fix_hint: Revisar el prompt y las restricciones de formato del LLM.
+    severity: fatal # No se pudo parsear la respuesta fundamental.
+
+  - code: E905_LLM_CALL_FAILED
+    message: Fallo general en la llamada a la API del LLM o en la conexión.
+    fix_hint: Revisar la configuración del proveedor LLM o la conexión de red.
+    severity: fatal # Error de infraestructura.
+
+  - code: E906_LLM_PARSE_VALIDATION_ERROR
+    message: Fallo de parseo o validación Pydantic de la respuesta JSON del LLM.
+    fix_hint: Revisar el formato de salida del LLM y el esquema Pydantic esperado.
+    severity: fatal # El formato de salida del LLM es incorrecto.
+
+  - code: E907_UNEXPECTED_LLM_PROCESSING_ERROR
+    message: Error inesperado durante el procesamiento de la respuesta del LLM.
+    fix_hint: Revisar el log para más detalles del error interno.
+    severity: fatal # Error desconocido.
+
+# ERRORES DE CONTROL DE FLUJO Y CONFIGURACIÓN DEL PIPELINE
+PIPELINE_CONTROL:
+  - code: E951_PROMPT_NOT_FOUND
+    message: Archivo de prompt especificado para la etapa no encontrado.
+    fix_hint: Asegurar que el archivo de prompt exista en la ruta correcta.
+    severity: fatal # Error de configuración que impide la ejecución.
+
+  - code: E952_NO_PAYLOAD
+    message: El ítem no tiene un payload para procesar en una etapa.
+    fix_hint: Revisar etapas anteriores que deberían generar o preservar el payload.
+    severity: fatal # Data faltante crítica.
+
+  - code: E953_ITEM_ID_MISMATCH
+    message: El item_id devuelto por un agente refinador no coincide con el item_id esperado.
+    fix_hint: Revisar la lógica del agente refinador para asegurar la consistencia de IDs.
+    severity: fatal # Inconsistencia crítica de identificación de ítem.
+
+  - code: E954_GEN_INIT_MISMATCH
+    message: Desalineación entre la cantidad de ítems inicializados y los esperados por la etapa de generación.
+    fix_hint: Revisar parámetros de usuario o lógica de inicialización de ítems.
+    severity: fatal # Error en la inicialización del lote.
+
+  - code: E955_GEN_NO_SUCCESSFUL_OUTPUT
+    message: La etapa de generación (generate_items) no produjo ningún ítem con estado 'success'.
+    fix_hint: Revisar el prompt de generación o la capacidad del LLM.
+    severity: fatal # La generación inicial falló completamente.
+
+  - code: E956_LLM_RESPONSE_FORMAT_INVALID
+    message: El LLM no devolvió una lista de ítems como se esperaba en la generación por lotes.
+    fix_hint: Revisar el prompt de generación para asegurar el formato de lista JSON.
+    severity: fatal # Error de formato de salida crítica del LLM.
+
+  - code: E957_LLM_ITEM_COUNT_MISMATCH
+    message: El LLM generó un número diferente de ítems al solicitado en la generación por lotes.
+    fix_hint: Ajustar el prompt o el modelo LLM para generar el número correcto.
+    severity: fatal # Desviación crítica en la cantidad generada.
+
+  - code: E958_PIPELINE_CONFIG_ERROR
+    message: Etapa definida en pipeline.yml no encontrada en el registro.
+    fix_hint: Verificar el nombre de la etapa en pipeline.yml y su registro.
+    severity: fatal # Error de configuración del pipeline.
+
+  - code: E959_PIPELINE_FATAL_ERROR
+    message: Error fatal inesperado durante la ejecución de una etapa.
+    fix_hint: Revisar el log para más detalles del error interno.
+    severity: fatal # Fallo catastrófico en la etapa.

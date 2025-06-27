@@ -49,7 +49,8 @@ class GenerateItemsStage(BaseStage):
             self.logger.critical(summary)
             for item in items:
                 self._set_status(item, "fatal_error", summary)
-                item.findings.append(ReportEntrySchema(code="GEN_INIT_MISMATCH", message=summary, severity="error"))
+                # CORRECCIÓN: severity="fatal" para E954_GEN_INIT_MISMATCH
+                item.findings.append(ReportEntrySchema(code="E954_GEN_INIT_MISMATCH", message=summary, severity="fatal"))
             if not items:
                 dummy_item = Item(payload=ItemPayloadSchema(item_id=uuid4(), metadata=MetadataSchema(idioma_item="es", area="General", asignatura="General", tema="Conceptos Generales", nivel_destinatario="Todos", nivel_cognitivo="recordar", dificultad_prevista="facil")))
                 self._set_status(dummy_item, "fatal_error", summary)
@@ -71,17 +72,20 @@ class GenerateItemsStage(BaseStage):
 
         self.logger.info(f"Calling LLM for batch generation of {n_items} items.")
 
+        # La etapa de generación no hereda de LLMStage, pero utiliza call_llm_and_parse_json_result
+        # que ya asigna "fatal" a los errores LLM_CALL_FAILED, LLM_PARSE_VALIDATION_ERROR, etc.
+        # Por lo tanto, no necesitamos re-mapear aquí; solo asegurarnos de que los findings se extiendan
+        # y que el status se propague correctamente.
         payloads_list_raw, llm_errors, _ = await call_llm_and_parse_json_result(
             prompt_name=self.params.get("prompt", "01_agent_dominio.md"),
             user_input_content=user_input_content_json,
             stage_name=self.stage_name,
-            item=items[0],
+            item=items[0], # Se pasa el primer ítem para asociar el uso de tokens y errores de LLM.
             ctx=self.ctx,
             expected_schema=List[ItemPayloadSchema],
             model=self.params.get("model"),
             temperature=self.params.get("temperature"),
             max_tokens=self.params.get("max_tokens"),
-            # provider=self.params.get("provider"), # ¡REMOVIDO! Ya se gestiona a través de ctx.
             top_k=self.params.get("top_k"),
             top_p=self.params.get("top_p"),
             stop_sequences=self.params.get("stop_sequences"),
@@ -89,6 +93,7 @@ class GenerateItemsStage(BaseStage):
         )
 
         if llm_errors:
+            # Si hay errores del LLM (ej. NO_LLM_JSON_RESPONSE), ya vienen con severity="fatal" de llm_utils.py.
             for item in items:
                 self._set_status(item, "fail.llm_error", f"LLM call or parse failed: {llm_errors[0].message}")
                 item.findings.extend(llm_errors)
@@ -98,40 +103,47 @@ class GenerateItemsStage(BaseStage):
             summary = "LLM did not return a list of items as expected."
             for item in items:
                 self._set_status(item, "fail.format_error", summary)
-                item.findings.append(ReportEntrySchema(code="LLM_RESPONSE_FORMAT_INVALID", message=summary, severity="error"))
+                # CORRECCIÓN: severity="fatal" para E956_LLM_RESPONSE_FORMAT_INVALID
+                item.findings.append(ReportEntrySchema(code="E956_LLM_RESPONSE_FORMAT_INVALID", message=summary, severity="fatal"))
             return items
 
         if len(payloads_list_raw) != n_items:
             summary = f"LLM generated {len(payloads_list_raw)} items, but {n_items} were requested."
             for item in items:
                 self._set_status(item, "fail.count_mismatch", summary)
-                item.findings.append(ReportEntrySchema(code="LLM_ITEM_COUNT_MISMATCH", message=summary, severity="error"))
+                # CORRECCIÓN: severity="fatal" para E957_LLM_ITEM_COUNT_MISMATCH
+                item.findings.append(ReportEntrySchema(code="E957_LLM_ITEM_COUNT_MISMATCH", message=summary, severity="fatal"))
             return items
 
         payloads_map = {str(p.item_id): p for p in payloads_list_raw}
 
         successful_generation_count = 0
         for item in items:
+            # Asegurarse de que item.temp_id se usa consistentemente como clave.
+            # El item_id dentro del payload generado por el LLM DEBE coincidir con el temp_id.
             payload = payloads_map.get(str(item.temp_id))
             if payload:
                 item.payload = payload
                 item.prompt_v = self.params.get("prompt")
+                # Limpiamos los hallazgos relacionados con errores de la llamada/parseo del LLM
+                # (ej. NO_LLM_JSON_RESPONSE, LLM_CALL_FAILED, etc.) si la generación fue exitosa para este item.
+                # Estos códigos son ahora todos 'fatal' en el catálogo.
                 item.findings = [
                     f for f in item.findings
                     if not (
-                        f.code.startswith("LLM_CALL_FAILED") or
-                        f.code.startswith("LLM_PARSE_VALIDATION_ERROR") or
-                        f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
-                        f.code.startswith("NO_LLM_")
+                        f.code.startswith("E904_NO_LLM_JSON_RESPONSE") or # Antes NO_LLM_
+                        f.code.startswith("E905_LLM_CALL_FAILED") or # Antes LLM_CALL_FAILED
+                        f.code.startswith("E906_LLM_PARSE_VALIDATION_ERROR") or # Antes LLM_PARSE_VALIDATION_ERROR
+                        f.code.startswith("E907_UNEXPECTED_LLM_PROCESSING_ERROR") # Antes UNEXPECTED_LLM_PROCESSING_ERROR
                     )
                 ]
                 successful_generation_count += 1
                 self._set_status(item, "success", "Item generated successfully.")
             else:
                 summary = f"LLM did not return a payload for expected item_id {item.temp_id}. Mismatch in batch generation."
+                # handle_item_id_mismatch_refinement ya usa severity="fatal" y E953_ITEM_ID_MISMATCH
                 handle_item_id_mismatch_refinement(
-                    item, self.stage_name, item.temp_id, UUID("00000000-0000-0000-0000-000000000000"),
-                    f"{self.stage_name}.fail.id_mismatch",
+                    item, self.stage_name, item.temp_id, UUID("00000000-0000-0000-0000-000000000000"), # ID dummy para el expected
                     summary
                 )
 

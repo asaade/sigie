@@ -128,8 +128,8 @@ async def run(
             )
             # Política de fallo temprano: si una etapa falla catastróficamente, se marca el estado y se detiene.
             for item in items:
-                if not item.status.endswith((".fail", ".error")):
-                    item.status = f"{stage_name}.fail.runner_error"
+                if not item.status.endswith((".fail", ".error")) and item.status != "fatal_error":
+                    item.status = f"{stage_name}.fail"
                     item.findings.append( # Usando item.findings
                         ReportEntrySchema(
                             code="PIPELINE_FATAL_ERROR",

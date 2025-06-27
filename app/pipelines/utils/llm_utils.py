@@ -49,10 +49,10 @@ async def call_llm_and_parse_json_result(
         error_msg = f"Prompt '{prompt_name}' not found for stage '{stage_name}': {e}"
         current_errors.append(
             ReportEntrySchema(
-                code="PROMPT_NOT_FOUND",
+                code="E951_PROMPT_NOT_FOUND", # Código estandarizado
                 message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
                 field="prompt_name",
-                severity="error"
+                severity="fatal" # ¡CORRECCIÓN: Cambiado a 'fatal' para consistencia!
             )
         )
         logger.error(error_msg)
@@ -71,7 +71,6 @@ async def call_llm_and_parse_json_result(
         "model": model,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        # "provider": provider, # ¡REMOVIDO! generate_response lo recibe como argumento nombrado explícito
         "top_k": top_k,
         "top_p": top_p,
         "stop_sequences": stop_sequences,
@@ -97,10 +96,10 @@ async def call_llm_and_parse_json_result(
             error_msg = f"LLM call failed for stage '{stage_name}': {resp.error_message}"
             current_errors.append(
                 ReportEntrySchema(
-                    code="LLM_CALL_FAILED",
+                    code="E905_LLM_CALL_FAILED", # Código estandarizado
                     message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
                     field="llm_api_call",
-                    severity="error"
+                    severity="fatal"
                 )
             )
             logger.error(error_msg)
@@ -114,16 +113,29 @@ async def call_llm_and_parse_json_result(
         else:
             clean_json_str = extract_json_block(raw_llm_text)
 
+            if not clean_json_str.strip(): # Si no se pudo extraer JSON o es vacío
+                error_msg = f"LLM returned empty or unparsable JSON response for stage '{stage_name}'. Raw: '{raw_llm_text[:200]}'"
+                current_errors.append(
+                    ReportEntrySchema(
+                        code="E904_NO_LLM_JSON_RESPONSE", # Código estandarizado
+                        message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
+                        field="llm_response_json",
+                        severity="fatal"
+                    )
+                )
+                logger.error(error_msg)
+                return None, current_errors, raw_llm_text
+
             parsed_result = TypeAdapter(expected_schema).validate_json(clean_json_str)
 
     except (json.JSONDecodeError, ValueError, ValidationError) as e:
         error_msg = f"Failed to parse/validate LLM response for stage '{stage_name}': {e}. Raw: {raw_llm_text[:200]}"
         current_errors.append(
             ReportEntrySchema(
-                code="LLM_PARSE_VALIDATION_ERROR",
+                code="E906_LLM_PARSE_VALIDATION_ERROR", # Código estandarizado
                 message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
                 field="llm_response_json",
-                severity="error"
+                severity="fatal"
             )
         )
         logger.error(error_msg)
@@ -132,10 +144,10 @@ async def call_llm_and_parse_json_result(
         error_msg = f"Unexpected error during LLM response processing for stage '{stage_name}': {e}"
         current_errors.append(
             ReportEntrySchema(
-                code="UNEXPECTED_LLM_PROCESSING_ERROR",
+                code="E907_UNEXPECTED_LLM_PROCESSING_ERROR", # Código estandarizado
                 message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
                 field="llm_response",
-                severity="error"
+                severity="fatal"
             )
         )
         logger.error(error_msg)

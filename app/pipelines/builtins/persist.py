@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 import logging
-from typing import List, Dict, Any, Optional # Optional es necesario para el type hint de db
+from typing import List
 
 from ..registry import register
 from app.schemas.models import Item # Nuestro modelo de dominio
@@ -47,11 +47,24 @@ class PersistStage(BaseStage): # CRÍTICO: Convertido a clase que hereda de Base
 
             # Tras un commit exitoso, actualizamos el estado de cada ítem en memoria.
             for item in items:
-                # Solo marcamos éxito si el ítem no estaba ya en un estado de fallo terminal.
-                if not item.status.endswith((".fail", ".error")):
-                    self._set_status(item, "success", "Item state successfully saved to the database.")
-                else: # Si ya tenía un error, solo auditamos que se intentó persistir.
-                    self._set_status(item, "skipped_persist_with_prior_fail", "Item not finalized; persistence skipped but audited.")
+                # Determinar si el ítem ya tiene un finding fatal
+                has_fatal_finding_on_arrival = any(f.severity == "fatal" for f in item.findings)
+
+                if has_fatal_finding_on_arrival:
+                    # Si el ítem ya tenía un finding fatal antes de llegar aquí,
+                    # se ha persistido en su estado fatal.
+                    self._set_status(
+                        item,
+                        "persisted_with_fatal_prior_error", # Nuevo outcome para auditoría
+                        "Item con errores fatales previos, guardado en base de datos en su estado actual."
+                    )
+                elif not item.status.endswith((".fail", ".error")):
+                    # Si el ítem llegó sin errores terminales y se guardó con éxito.
+                    self._set_status(item, "success", "Item guardado exitosamente en la base de datos.")
+                else:
+                    # Si el ítem llegó con un error terminal no fatal (e.g., .fail, .error)
+                    # y no fue manejado por la lógica de fatal_finding_on_arrival
+                    self._set_status(item, "skipped_persist_with_prior_fail", "Ítem no finalizado; persistencia omitida/auditada.")
 
             self.logger.info(f"Successfully persisted {len(items)} items.")
 
@@ -61,6 +74,6 @@ class PersistStage(BaseStage): # CRÍTICO: Convertido a clase que hereda de Base
             for item in items:
                 # Si no está ya en un fallo terminal, lo marcamos con el error de persistencia.
                 if not item.status.endswith((".fail", ".error")):
-                    self._set_status(item, "fail.dberror", f"Failed to save item to database: {e}")
+                    self._set_status(item, "fail.dberror", f"Fallo al guardar ítem en la base de datos: {e}")
 
         return items

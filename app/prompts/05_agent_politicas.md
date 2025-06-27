@@ -20,10 +20,10 @@ Devuelve exclusivamente un objeto JSON con esta estructura:
   "is_valid": true,
   "findings": [
     {
-      "code": "W_SESGO_GENERO",
+      "code": "E120_SESGO_GENERO", # Ejemplo actualizado con código estandarizado
       "message": "El enunciado utiliza un pronombre con sesgo de genero que puede ser neutralizado.",
       "field": "enunciado_pregunta",
-      "severity": "warning"
+      "severity": "error" # Severidad actualizada según catálogo
     }
   ]
 }
@@ -56,17 +56,15 @@ Tabla resumida de advertencias
 | Codigo                    | Descripcion breve                                             | Severidad |
 |---------------------------|---------------------------------------------------------------|-----------|
 | E090_PROFANITY            | Contenido ofensivo o prohibido.                               | fatal     |
-| W102_ABSOL_STEM           | Absoluto injustificado (ej. siempre, nunca).                  | warn      |
-| W103_HEDGE_STEM           | Hedging innecesario (ej. quiza, algunos).                     | warn      |
-| W107_COLOR_ALT            | alt_text menciona colores sin codificar informacion.          | warn      |
-| W108_ALT_VAGUE            | alt_text vago o generico.                                     | warn      |
-| W120_SESGO_GENERO         | Lenguaje con sesgo de genero.                                 | warn      |
-| W121_CULTURAL_EXCL       | Referencia cultural o regional excluyente.                    | warn      |
-| W122_SESGO_NOMBRE         | Nombre propio con posible sesgo.                              | warn      |
-| W_CONTENIDO_TRIVIAL       | Lenguaje o tono inadecuado para contexto academico.            | warn      |
-| W_SESGO_IMAGEN            | Imagen o recurso visual con sesgo implicito.                  | warn      |
-| W_DESCRIPCION_DEFICIENTE  | Descripcion visual poco informativa.                          | warn      |
-| W_REFERENCIA_INVALIDA     | URL de referencia no valida o inaccesible.                    | warn      |
+| E120_SESGO_GENERO         | Lenguaje con sesgo de genero.                                 | error     |
+| E121_CULTURAL_EXCL       | Referencia cultural o regional excluyente.                    | error     |
+| E122_SESGO_NOMBRE         | Nombre propio con posible sesgo.                              | error     |
+| E124_SESGO_IMAGEN         | Imagen o recurso visual con sesgo implicito.                  | error     |
+| E126_REFERENCIA_INVALIDA  | URL de referencia no valida o inaccesible.                    | error     |
+| W102_ABSOL_STEM           | Absoluto injustificado (ej. siempre, nunca).                  | warning   |
+| W103_HEDGE_STEM           | Hedging innecesario (ej. quiza, algunos).                     | warning   |
+| W107_COLOR_ALT            | alt_text menciona colores sin codificar informacion.          | warning   |
+| W108_ALT_VAGUE            | alt_text vago o generico.                                     | warning   |
 
 Restricciones
 
