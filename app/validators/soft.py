@@ -118,7 +118,34 @@ def soft_validate(item: dict) -> list[dict]:
                 "field": f"opciones[{i}].texto"
             })
 
-    # --- FIN NUEVAS VALIDACIONES DE ESTILO ---
+    # --- NUEVA VALIDACIÓN: W114_OPTION_NO_PERIOD ---
+    # Las opciones de respuesta NO llevan punto final.
+    for i, opt in enumerate(options):
+        opt_text = opt.get("texto", "")
+        # Usar strip() para ignorar espacios en blanco al final
+        if opt_text.strip().endswith('.'):
+            findings.append({
+                "code": "W114_OPTION_NO_PERIOD",
+                "message": f"La opción '{opt.get('id', str(i))}' termina en punto final. Las opciones no deben llevar punto final.",
+                "field": f"opciones[{i}].texto"
+            })
+    # --- FIN NUEVA VALIDACIÓN ---
+
+    # --- NUEVA VALIDACIÓN: W115_OPTION_NO_AND_IN_SERIES ---
+    # No usar la conjunción 'y' o 'o' antes del último elemento en una enumeración de opciones con comas.
+    # Esta validación es más compleja y depende de la estructura interna de la opción, que no es un listado explícito en la mayoría de los casos.
+    # Se enfocará en casos donde la opción misma es una enumeración simple.
+    for i, opt in enumerate(options):
+        opt_text = opt.get("texto", "")
+        # Detectar patrones como "A, B y C" o "A, B o C"
+        if re.search(r',\s*(?:y|o)\s+[^,]+$', opt_text, re.IGNORECASE):
+            findings.append({
+                "code": "W115_OPTION_NO_AND_IN_SERIES",
+                "message": f"La opción '{opt.get('id', str(i))}' usa una conjunción ('y' u 'o') al final de una enumeración con comas. Las opciones no deben usarla.",
+                "field": f"opciones[{i}].texto"
+            })
+    # --- FIN NUEVA VALIDACIÓN ---
+
 
     # Negaciones en minúscula (W101_STEM_NEG_LOWER)
     if any(f" {neg} " in stem_lower for neg in NEG_WORDS):

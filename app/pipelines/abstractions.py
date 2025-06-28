@@ -2,11 +2,12 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Type
+from typing import List, Dict, Any, Type, Optional
 from pydantic import BaseModel
 import asyncio
 
 from app.schemas.models import Item
+from app.schemas.item_schemas import CorrectionEntrySchema # Importar CorrectionEntrySchema para el type hint
 from app.pipelines.utils.stage_helpers import (
     update_item_status_and_audit,
     skip_if_terminal_error,
@@ -35,7 +36,8 @@ class BaseStage(ABC):
         """El punto de entrada que el runner llamará para ejecutar la etapa."""
         raise NotImplementedError
 
-    def _set_status(self, item: Item, outcome: str, summary: str = ""):
+    def _set_status(self, item: Item, outcome: str, summary: str = "",
+                   corrections: Optional[List[CorrectionEntrySchema]] = None):
         """
         Helper para estandarizar la actualización de estado y la auditoría.
         Genera un estado como 'validate_logic.success' o 'refine_policy.fail'.
@@ -61,7 +63,8 @@ class BaseStage(ABC):
             summary_for_audit = final_summary
             self.logger.info(f"Item {item.temp_id} in {self.stage_name} status updated to: {item.status}.")
 
-        update_item_status_and_audit(item, self.stage_name, item.status, summary_for_audit)
+        # Pasar 'corrections' a update_item_status_and_audit
+        update_item_status_and_audit(item, self.stage_name, item.status, summary_for_audit, audit_corrections=corrections)
 
 
 class LLMStage(BaseStage):
@@ -107,7 +110,7 @@ class LLMStage(BaseStage):
         if not item.payload:
             # handle_missing_payload ahora marca el ítem como "fatal_error"
             handle_missing_payload(
-                item, self.stage_name, "NO_PAYLOAD", "Item has no payload for processing.",
+                item, self.stage_name, "E952_NO_PAYLOAD", "Item has no payload for processing.", # Usar código estandarizado
                 f"{self.stage_name}.fail.no_payload", "Skipped: No payload to process."
             )
             return
@@ -123,6 +126,16 @@ class LLMStage(BaseStage):
             top_p_param = self.params.get("top_p")
             stop_sequences_param = self.params.get("stop_sequences")
             seed_param = self.params.get("seed")
+
+            # Asegurarse de que llm_input no sea None si la etapa _prepare_llm_input lo devuelve.
+            # En el caso de refine_item_style, _prepare_llm_input ahora siempre devuelve str,
+            # pero en el futuro otras etapas LLM podrían optimizar así.
+            if llm_input is None:
+                # Esto es un caso optimizado donde la etapa no requiere LLM.
+                # Se llama a _process_llm_result con None para indicar que no hubo resultado LLM real.
+                await self._process_llm_result(item, None)
+                return
+
 
             result, llm_errors, _ = await call_llm_and_parse_json_result(
                 prompt_name=self.prompt_name,
@@ -144,31 +157,37 @@ class LLMStage(BaseStage):
                 item.findings.extend(llm_errors)
                 error_summary = f"LLM utility failed: {llm_errors[0].message}"
                 llm_outcome = "fatal" if any(err.severity == "fatal" for err in llm_errors) else "error"
-                self._set_status(item, llm_outcome, error_summary)
+                # Pasar corrections=None aquí, ya que los errores de utilidad LLM no tienen correcciones asociadas.
+                self._set_status(item, llm_outcome, error_summary, corrections=None)
                 self.logger.warning(f"For item {item.temp_id}, {error_summary}. Outcome: {llm_outcome}")
             elif result:
+                # _process_llm_result es responsable de llamar a _set_status.
+                # _clean_llm_findings_on_success se llamará DESPUÉS de _process_llm_result
+                # si _process_llm_result marcó el ítem como "success".
                 await self._process_llm_result(item, result)
-                self._clean_llm_findings_on_success(item) # Este método ahora estará en la clase base
+                if item.status.endswith(".success"): # Solo limpiar si la etapa fue exitosa.
+                    self._clean_llm_findings_on_success(item)
             else:
                 summary = "LLM did not return a valid result or parsing failed to produce expected schema. This is a critical error."
                 self.logger.error(f"CRITICAL FAILURE for item {item.temp_id} in stage {self.stage_name}: {summary}")
-                self._set_status(item, "fatal", summary)
+                # Pasar corrections=None.
+                self._set_status(item, "fatal", summary, corrections=None)
         except Exception as e:
             self.logger.error(f"Unexpected error in stage {self.stage_name} for item {item.temp_id}: {e}", exc_info=True)
-            self._set_status(item, "fatal", str(e))
+            self._set_status(item, "fatal", str(e), corrections=None)
 
-    def _clean_llm_findings_on_success(self, item: Item) -> None: # CRÍTICO: MÉTODO AÑADIDO A LA CLASE BASE
+    def _clean_llm_findings_on_success(self, item: Item) -> None:
         """
         Limpia los hallazgos del ítem que son generados por fallos de la utilidad LLM/parseo,
-        una vez que el _process_llm_result de la etapa fue exitoso.
+        una vez que el _process_llm_result de la etapa fue exitoso y marcó el ítem como success.
         """
         item.findings = [
             f for f in item.findings
             if not (
-                f.code.startswith("LLM_CALL_FAILED") or
-                f.code.startswith("LLM_PARSE_VALIDATION_ERROR") == "true" or
-                f.code.startswith("UNEXPECTED_LLM_PROCESSING_ERROR") or
-                f.code.startswith("NO_LLM_")
+                f.code.startswith("E905_LLM_CALL_FAILED") or
+                f.code.startswith("E906_LLM_PARSE_VALIDATION_ERROR") or
+                f.code.startswith("E907_UNEXPECTED_LLM_PROCESSING_ERROR") or
+                f.code.startswith("E904_NO_LLM_JSON_RESPONSE")
             )
         ]
 
@@ -183,6 +202,6 @@ class LLMStage(BaseStage):
         raise NotImplementedError
 
     @abstractmethod
-    async def _process_llm_result(self, item: Item, result: BaseModel):
-        """Define la lógica de negocio para procesar un resultado exitoso del LLM."""
+    async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
+        """Define la lógica de negocio para procesar un resultado exitoso del LLM, o un caso optimizado de no llamada a LLM."""
         raise NotImplementedError

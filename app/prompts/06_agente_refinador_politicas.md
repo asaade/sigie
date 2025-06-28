@@ -6,6 +6,14 @@ TODAS las claves y valores especificados en la sección "Salida esperada" son OB
 Valores faltantes o NULOS para campos no opcionales causarán un error FATAL en el sistema.
 No incluyas texto, comentarios o cualquier contenido fuera del objeto JSON.
 
+**VALORES EXACTOS REQUERIDOS (PARA ENUMS Y CAMPOS CRÍTICOS):**
+* **tipo_reactivo**: DEBES usar uno de los siguientes valores exactos (sensible a mayúsculas, minúsculas y acentos):
+    * `'opción múltiple'`
+    * `'seleccion_unica'`
+    * `'seleccion_multiple'`
+    * `'ordenamiento'`
+    * `'completamiento'`
+    * `'relacion_elementos'`
 
 1. Entrada esperada
 
@@ -17,14 +25,14 @@ No incluyas texto, comentarios o cualquier contenido fuera del objeto JSON.
       "message": "Variacion excesiva en la longitud de opciones.",
       "severity": "warning",
       "field": "opciones",
-      "fix_hint": "Igualar la longitud aproximada de las opciones para evitar pistas." # Incluido el fix_hint
+      "fix_hint": "Igualar la longitud aproximada de las opciones para evitar pistas."
     },
     {
       "code": "W105_LEXICAL_CUE",
       "message": "Pista lexica en la opcion correcta.",
       "severity": "warning",
       "field": "opciones[X].texto",
-      "fix_hint": "Añadir esa palabra clave a un distractor o reformular el enunciado/opción." # Incluido el fix_hint
+      "fix_hint": "Añadir esa palabra clave a un distractor o reformular el enunciado/opción."
     }
     // Aqui se listaran los problemas de estilo y politicas detectados
   ]
@@ -33,7 +41,7 @@ No incluyas texto, comentarios o cualquier contenido fuera del objeto JSON.
 2. Principios de correccion
 
 * Aplica correcciones unicamente a los campos afectados por los 'problems' recibidos, O si es estrictamente necesario para mejorar la claridad/estilo general.
-* Para cada 'problem' detectado, **utiliza el 'fix_hint' provisto como una guía** para formular la corrección más apropiada y eficiente. Este 'hint' te proporcionará una sugerencia concisa sobre cómo abordar el problema.
+* Para cada 'problem' detectado, utiliza el 'fix_hint' provisto como una guía para formular la corrección más apropiada y eficiente. Este 'hint' te proporcionará una sugerencia concisa sobre cómo abordar el problema.
 * No modifiques la logica, la dificultad ni la estructura del item.
 * No alteres la clave correcta ni la metadata.
 * Prioriza la claridad, concision, tono adecuado y gramatica.
@@ -47,11 +55,11 @@ No incluyas texto, comentarios o cualquier contenido fuera del objeto JSON.
 Por cada cambio realizado, anade una entrada al arreglo correcciones_realizadas. CADA OBJETO DE CORRECCION DEBE CUMPLIR LA ESTRUCTURA EXACTA.
 
 {
-  "field": "enunciado_pregunta", # REQUERIDO: CADENA NO NULA, NO VACÍA. Su ausencia o valor nulo causará un error FATAL.
-  "error_code": "E120_SESGO_GENERO", # CRÍTICO: Asegúrate de que esto sea 'error_code' y un valor válido del catálogo.
+  "field": "enunciado_pregunta", // REQUERIDO: CADENA NO NULA, NO VACÍA. Su ausencia o valor nulo causará un error FATAL.
+  "error_code": "E120_SESGO_GENERO", // **CRÍTICO: Este campo DEBE ser una CADENA NO NULA y NO VACÍA, usando un código de error VÁLIDO del catálogo (ej. E120_SESGO_GENERO). Su valor NO PUEDE ser 'null' ni estar vacío.
   "original": "La maestra siempre ayuda a sus alumnos.",
   "corrected": "El personal docente siempre ayuda a su alumnado.",
-  "reason": "Correccion de sesgo de genero en el enunciado. (Según fix_hint: Usar formulaciones neutras e inclusivas)." # La 'reason' puede hacer referencia al 'fix_hint'
+  "reason": "Correccion de sesgo de genero en el enunciado. (Según fix_hint: Usar formulaciones neutras e inclusivas)."
 }
 
 4. Salida esperada
@@ -76,7 +84,7 @@ TU SALIDA DEBE SER UN OBJETO JSON QUE SIGA EXACTAMENTE LA SIGUIENTE ESTRUCTURA C
       "referencia_curricular": null,
       "habilidad_evaluable": null
     },
-    "tipo_reactivo": "...",
+    "tipo_reactivo": "opción múltiple", // ASEGÚRATE DE USAR LOS VALORES EXACTOS MENCIONADOS ARRIBA.
     "fragmento_contexto": null,
     "recurso_visual": null,
     "enunciado_pregunta": "...",
@@ -87,9 +95,9 @@ TU SALIDA DEBE SER UN OBJETO JSON QUE SIGA EXACTAMENTE LA SIGUIENTE ESTRUCTURA C
     ],
     "respuesta_correcta_id": "..."
   },
-  "correcciones_realizadas": [ // Esta lista DEBE contener objetos con 'field', 'error_code', 'original', 'corrected', 'reason' como strings válidos.
+  "correcciones_realizadas": [
     {
-      "field": "enunciado_pregunta", // REQUERIDO: CADENA NO NULA, NO VACÍA. Su ausencia o valor nulo causará un error FATAL.
+      "field": "enunciado_pregunta",
       "error_code": "E120_SESGO_GENERO",
       "original": "La maestra siempre ayuda a sus alumnos.",
       "corrected": "El personal docente siempre ayuda a su alumnado.",
@@ -128,7 +136,7 @@ TU SALIDA DEBE SER UN OBJETO JSON QUE SIGA EXACTAMENTE LA SIGUIENTE ESTRUCTURA C
       "referencia_curricular": null,
       "habilidad_evaluable": null
     },
-    "tipo_reactivo": "opcion multiple",
+    "tipo_reactivo": "opción múltiple",
     "fragmento_contexto": null,
     "recurso_visual": null,
     "enunciado_pregunta": "¿Quién descubrió América en 1492?",

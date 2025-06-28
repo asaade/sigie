@@ -8,22 +8,20 @@ stages:
     params:
       prompt: "01_agent_dominio.md"
       provider: ollama # Ejemplo: Usar OpenAI para la generación
-      ## model: "mistralai/mistral-small-3.2-24b-instruct:free" # Ejemplo de modelo
-      model: "llama3.2"
+      model: "gemma3:4b"
       temperature: 0.7
       max_tokens: 3000
 
   # 2. Validación programática de reglas duras
   - name: validate_hard # Nombre de la clase ValidateHardStage
     # Esta etapa no usa LLM directamente, su lógica es programática.
-    # Los errores (fail) detendrán el procesamiento de ese ítem en etapas posteriores.
 
   # 3. Ciclo de validación y refinamiento lógico
   - name: validate_logic # Nombre de la clase ValidateLogicStage (Validador)
     params:
       prompt: "02_agent_razonamiento.md"
       provider: ollama # Ejemplo: Usar Gemini para validación lógica
-      model: llama3.2
+      model: gemma3:4b
       temperature: 0.3 # Baja temperatura para precisión en validación
       max_tokens: 1500
 
@@ -31,7 +29,7 @@ stages:
     params:
       prompt: "03_agente_refinador_razonamiento.md"
       provider: ollama # Mismo proveedor que el validador
-      model: llama3.2
+      model: gemma3:4b
       temperature: 0.5 # Poca creatividad para corrección
       max_tokens: 2500
       # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
@@ -42,7 +40,7 @@ stages:
     params:
       prompt: "05_agent_politicas.md"
       provider: ollama # Ejemplo: Usar OpenAI para validación de políticas
-      model: llama3.2
+      model: gemma3:4b
       temperature: 0.3
       max_tokens: 1500
 
@@ -50,7 +48,7 @@ stages:
     params:
       prompt: "06_agente_refinador_politicas.md"
       provider: ollama # Mismo proveedor que el validador
-      model: llama3.2
+      model: gemma3:4b
       temperature: 0.5
       max_tokens: 2500
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
@@ -65,7 +63,7 @@ stages:
     params:
       prompt: "04_agente_refinador_estilo.md"
       provider: ollama # Ejemplo: Usar OpenAI para corrección de estilo
-      model: llama3.2
+      model: gemma3:4b
       temperature: 0.6 # Moderada creatividad para estilo
       max_tokens: 2000
       # Esta etapa actuará sobre ítems que hayan pasado las etapas anteriores

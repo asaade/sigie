@@ -52,6 +52,16 @@ ESTILO:
     fix_hint: Sustituir por un cuantificador más preciso o reformular.
     severity: warning # Afecta la claridad, pero no necesariamente la corrección.
 
+  - code: W114_OPTION_NO_PERIOD # NUEVO CÓDIGO
+    message: Las opciones de respuesta terminan en punto final.
+    fix_hint: Eliminar el punto final de las opciones de respuesta.
+    severity: warning # Violación de convención estilística.
+
+  - code: W115_OPTION_NO_AND_IN_SERIES # NUEVO CÓDIGO
+    message: Se usa la conjunción 'y' o 'o' antes del último elemento en una enumeración de opciones con comas.
+    fix_hint: Eliminar la conjunción redundante en la enumeración.
+    severity: warning # Violación de convención estilística.
+
   - code: W123_CONTENIDO_TRIVIAL
     message: Lenguaje o tono inadecuado para un contexto académico en el ítem.
     fix_hint: Ajustar el lenguaje para que sea formal y apropiado al contexto académico.
