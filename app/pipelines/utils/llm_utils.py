@@ -114,10 +114,10 @@ async def call_llm_and_parse_json_result(
             clean_json_str = extract_json_block(raw_llm_text)
 
             if not clean_json_str.strip(): # Si no se pudo extraer JSON o es vacío
-                error_msg = f"LLM returned empty or unparsable JSON response for stage '{stage_name}'. Raw: '{raw_llm_text[:200]}'"
+                error_msg = f"La respuesta del LLM no es un JSON válido o no cumple con el esquema esperado (ej. campos faltantes, formato incorrecto). Raw: '{raw_llm_text[:200]}'"
                 current_errors.append(
                     ReportEntrySchema(
-                        code="E904_NO_LLM_JSON_RESPONSE", # Código estandarizado
+                        code="E904_LLM_RESPONSE_FORMAT_ERROR", # Código estandarizado consolidado
                         message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
                         field="llm_response_json",
                         severity="fatal"
@@ -126,20 +126,24 @@ async def call_llm_and_parse_json_result(
                 logger.error(error_msg)
                 return None, current_errors, raw_llm_text
 
-            parsed_result = TypeAdapter(expected_schema).validate_json(clean_json_str)
+            # Intenta validar contra el esquema Pydantic
+            try:
+                parsed_result = TypeAdapter(expected_schema).validate_json(clean_json_str)
+            except ValidationError as e:
+                # Si la validación Pydantic falla (p.ej., campos faltantes aunque el JSON sea válido)
+                error_msg = f"La respuesta del LLM no es un JSON válido o no cumple con el esquema esperado (ej. campos faltantes, formato incorrecto). Raw: {clean_json_str[:200]}... {e}"
+                current_errors.append(
+                    ReportEntrySchema(
+                        code="E904_LLM_RESPONSE_FORMAT_ERROR", # Código estandarizado consolidado
+                        message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
+                        field="llm_response_json",
+                        severity="fatal"
+                    )
+                )
+                logger.error(error_msg)
+                return None, current_errors, raw_llm_text
 
-    except (json.JSONDecodeError, ValueError, ValidationError) as e:
-        error_msg = f"Failed to parse/validate LLM response for stage '{stage_name}': {e}. Raw: {raw_llm_text[:200]}"
-        current_errors.append(
-            ReportEntrySchema(
-                code="E906_LLM_PARSE_VALIDATION_ERROR", # Código estandarizado
-                message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
-                field="llm_response_json",
-                severity="fatal"
-            )
-        )
-        logger.error(error_msg)
-        return None, current_errors, raw_llm_text
+
     except Exception as e:
         error_msg = f"Unexpected error during LLM response processing for stage '{stage_name}': {e}"
         current_errors.append(

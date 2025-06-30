@@ -7,8 +7,8 @@ stages:
   - name: generate_items # Nombre de la clase GenerateItemsStage
     params:
       prompt: "01_agent_dominio.md"
-      provider: ollama # Ejemplo: Usar OpenAI para la generación
-      model: "gemma3:4b"
+      provider: gemini # Ejemplo: Usar OpenAI para la generación
+      model: "gemini-2.0-flash"
       temperature: 0.7
       max_tokens: 3000
 
@@ -20,16 +20,16 @@ stages:
   - name: validate_logic # Nombre de la clase ValidateLogicStage (Validador)
     params:
       prompt: "02_agent_razonamiento.md"
-      provider: ollama # Ejemplo: Usar Gemini para validación lógica
-      model: gemma3:4b
+      provider: gemini # Ejemplo: Usar Gemini para validación lógica
+      model: gemini-2.0-flash
       temperature: 0.3 # Baja temperatura para precisión en validación
       max_tokens: 1500
 
   - name: refine_item_logic # Nombre de la clase RefineLogicStage (Refinador)
     params:
       prompt: "03_agente_refinador_razonamiento.md"
-      provider: ollama # Mismo proveedor que el validador
-      model: gemma3:4b
+      provider: gemini # Mismo proveedor que el validador
+      model: gemini-2.0-flash
       temperature: 0.5 # Poca creatividad para corrección
       max_tokens: 2500
       # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
@@ -39,16 +39,16 @@ stages:
   - name: validate_policy # Nombre de la clase ValidatePolicyStage (Validador)
     params:
       prompt: "05_agent_politicas.md"
-      provider: ollama # Ejemplo: Usar OpenAI para validación de políticas
-      model: gemma3:4b
+      provider: gemini # Ejemplo: Usar OpenAI para validación de políticas
+      model: gemini-2.0-flash
       temperature: 0.3
       max_tokens: 1500
 
   - name: refine_item_policy # Nombre de la clase RefinePolicyStage (Refinador)
     params:
       prompt: "06_agente_refinador_politicas.md"
-      provider: ollama # Mismo proveedor que el validador
-      model: gemma3:4b
+      provider: gemini # Mismo proveedor que el validador
+      model: gemini-2.0-flash
       temperature: 0.5
       max_tokens: 2500
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
@@ -62,8 +62,8 @@ stages:
   - name: refine_item_style # Nombre de la clase RefineStyleStage
     params:
       prompt: "04_agente_refinador_estilo.md"
-      provider: ollama # Ejemplo: Usar OpenAI para corrección de estilo
-      model: gemma3:4b
+      provider: gemini # Ejemplo: Usar OpenAI para corrección de estilo
+      model: gemini-2.0-flash
       temperature: 0.6 # Moderada creatividad para estilo
       max_tokens: 2000
       # Esta etapa actuará sobre ítems que hayan pasado las etapas anteriores

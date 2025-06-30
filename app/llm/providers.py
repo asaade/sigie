@@ -132,7 +132,6 @@ class OpenRouterClient(OpenAIClient):
 
 from google import genai
 from google.genai import types
-# from google.generativeai.types import GenerateContentResponse # NOT USED DIRECTLY
 from google.api_core.exceptions import ResourceExhausted, InternalServerError, Aborted, DeadlineExceeded, GoogleAPICallError
 
 @register_provider("gemini")
@@ -167,6 +166,15 @@ class GeminiClient(BaseLLMClient):
             "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
         }
 
+        # Filter out 'timeout' explicitly from kwargs before passing to config or generate_content
+        # as it's not a direct parameter of generate_content or its config for Gemini.
+        if 'timeout' in kwargs:
+            self.logger.warning(
+                f"Removed unsupported 'timeout' argument for Gemini's generate_content call in stage "
+                f"(check new SDK docs for timeout handling if needed). Value was: {kwargs['timeout']}"
+            )
+            kwargs.pop("timeout") # Remove the unsupported argument
+
         generate_content_config = types.GenerateContentConfig(
             **generate_content_config_params,
             system_instruction=system_instruction_content if system_instruction_content else None,
@@ -176,8 +184,7 @@ class GeminiClient(BaseLLMClient):
              model=model_name,
              contents=gemini_contents,
              config=generate_content_config,
-             timeout=self.settings.llm_request_timeout,
-             **kwargs
+             **kwargs # Pass only supported kwargs; timeout has been removed
         )
 
     def _parse_response(self, res: Any) -> LLMResponse: # Changed type hint from GenerateContentResponse
@@ -233,6 +240,15 @@ class OllamaClient(BaseLLMClient):
         chat_params.update(kwargs)
 
         # CRÍTICO: Eliminado 'timeout' de aquí, ya que AsyncClient.chat() no lo acepta directamente
+        # The 'timeout' keyword argument is removed from chat_params before passing,
+        # ensuring it's not passed to ollama.AsyncClient.chat which doesn't support it directly.
+        if 'timeout' in chat_params:
+            self.logger.warning(
+                f"Removed unsupported 'timeout' argument for Ollama's chat call in stage "
+                f"(check OllamaClient or AsyncClient docs for timeout handling if needed). Value was: {chat_params['timeout']}"
+            )
+            chat_params.pop("timeout")
+
         return await client.chat(**chat_params)
 
 

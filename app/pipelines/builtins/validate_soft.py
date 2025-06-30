@@ -7,11 +7,12 @@ from typing import List # Necesario para List[Item]
 from ..registry import register
 from app.schemas.models import Item
 from app.schemas.item_schemas import ReportEntrySchema # Necesario para crear instancias de ReportEntrySchema
-from app.validators.soft import soft_validate # Necesario para llamar la lógica de validación suave
+# Asumo que soft_validate es el nombre de la función que contiene la lógica de soft.py
+# (No tengo acceso directo para verificar si es el nombre correcto, pero es la convención)
+from app.validators.soft import soft_validate
 from app.pipelines.abstractions import BaseStage # CRÍTICO: Importamos BaseStage
 
 # Importar solo las helpers que NO son métodos de BaseStage y que se usan directamente aquí.
-# skip_if_terminal_error y handle_missing_payload son necesarios aquí para BaseStage.
 from ..utils.stage_helpers import (
     skip_if_terminal_error,
     handle_missing_payload,
@@ -44,7 +45,7 @@ class ValidateSoftStage(BaseStage): # CRÍTICO: Convertido a clase que hereda de
             # Esta comprobación es necesaria para las etapas que no heredan de LLMStage.
             if not item.payload:
                 handle_missing_payload( # Llamada directa a la helper
-                    item, self.stage_name, "NO_PAYLOAD_FOR_SOFT_VALIDATION", "El ítem no tiene un payload para validar el estilo.",
+                    item, self.stage_name, "E952_NO_PAYLOAD", "El ítem no tiene un payload para validar el estilo.",
                     f"{self.stage_name}.fail.no_payload", "Saltado: no hay payload de ítem para validar el estilo."
                 )
                 continue
@@ -54,24 +55,27 @@ class ValidateSoftStage(BaseStage): # CRÍTICO: Convertido a clase que hereda de
             # La lógica de validación real está en app/validators/soft.py
             soft_findings_raw = soft_validate(item_dict_payload)
 
-            current_findings: List[ReportEntrySchema] = [
-                ReportEntrySchema(
-                    code=finding.get("warning_code", "UNKNOWN_SOFT_FINDING"),
-                    message=finding.get("message", "Advertencia de estilo no especificada."),
-                    field=finding.get("field"),
-                    severity="warning" # Todos los hallazgos de esta etapa son advertencias
+            current_findings: List[ReportEntrySchema] = []
+            for finding in soft_findings_raw:
+                # CORRECCIÓN: Usar "code" en lugar de "warning_code" y obtener "severity" y "fix_hint"
+                current_findings.append(
+                    ReportEntrySchema(
+                        code=finding.get("code", "UNKNOWN_SOFT_FINDING"), # Usar "code"
+                        message=finding.get("message", "Advertencia de estilo no especificada."),
+                        field=finding.get("field"),
+                        severity=finding.get("severity", "warning"), # Obtener severity real
+                        fix_hint=finding.get("fix_hint", None) # Obtener fix_hint
+                    )
                 )
-                for finding in soft_findings_raw
-            ]
 
             # LÓGICA DE ACTUALIZACIÓN ALINEADA CON BaseStage
             if current_findings:
                 item.findings.extend(current_findings)
-                summary = f"Soft validation completed. {len(current_findings)} warnings issued."
+                summary = f"Soft validation completed. {len(current_findings)} warnings/errors issued."
                 # La validación suave NO cambia el estado a "fallido" si solo hay advertencias.
                 # Se marca como éxito para indicar que pasó esta etapa, y las advertencias se acumulan.
                 self._set_status(item, "success", summary) # Usar _set_status de BaseStage
-                self.logger.info(f"Item {item.temp_id} received {len(current_findings)} style warnings.")
+                self.logger.info(f"Item {item.temp_id} received {len(current_findings)} style warnings/errors.")
             else:
                 summary = "Soft validation completed. No issues found."
                 self._set_status(item, "success", summary) # Usar _set_status de BaseStage

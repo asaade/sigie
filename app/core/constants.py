@@ -19,6 +19,8 @@ STOP_WORDS = {
 }
 NEG_WORDS = ["no", "nunca", "jamás", "ningún", "ninguna", "ninguno", "nadie", "nada"]
 ABSOL_WORDS = ["siempre", "nunca", "todo", "todos", "nada", "nadie", "ninguno", "absolutamente"]
+DESCRIPTIVE_VERBS = ["muestra", "indica", "representa", "describe", "ilustra", "contiene", "detalla", "explica",
+                     "compara", "presenta", "resume", "provee", "visualiza"]
 HEDGE_WORDS = ["aproximadamente", "quizá", "quizás", "posiblemente", "probablemente", "casi", "podría", "suele"]
 FORBIDDEN_OPTIONS = ["todas las anteriores", "ninguna de las anteriores"]
 COLOR_WORDS = ["rojo", "verde", "azul", "amarillo", "negro", "blanco", "gris", "naranja", "morado", "rosa", "marrón"]

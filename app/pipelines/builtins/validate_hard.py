@@ -14,6 +14,27 @@ from app.pipelines.abstractions import BaseStage
 
 logger = logging.getLogger(__name__)
 
+# MOCK: En un sistema real, este catálogo se cargaría desde sigie_error_codes.yaml
+# o a través de un módulo de utilidades centralizado.
+# Solo los códigos de la categoría ESTRUCTURAL y relevantes de PIPELINE_CONTROL para validate_hard
+MOCK_ERROR_CATALOG_HARD = {
+    "E001_SCHEMA": {"message": "El JSON del ítem no cumple el esquema.", "fix_hint": "Regenerar el ítem siguiendo el esquema."},
+    "E010_NUM_OPTIONS": {"message": "El número de opciones debe ser 3 o 4.", "fix_hint": "Ajustar la cantidad de opciones."}, # Although not explicitly checked in this code, included for completeness if added later.
+    "E011_DUP_ID": {"message": "IDs de opciones duplicados.", "fix_hint": "Usar IDs únicos."},
+    "E012_CORRECT_COUNT": {"message": "Debe haber exactamente una opción correcta.", "fix_hint": "Dejar solo una opción con es_correcta: true."},
+    "E013_ID_NO_MATCH": {"message": "respuesta_correcta_id no coincide con la opción correcta.", "fix_hint": "Sincronizar respuesta_correcta_id con el id de la opción correcta."},
+    "E030_COMPLET_SEGMENTS": {"message": "Segmentos de opciones no coinciden con huecos del enunciado.", "fix_hint": "Alinear segmentos con huecos."},
+    "E050_BAD_URL": {"message": "URL no válida o inaccesible.", "fix_hint": "Proveer URL accesible o dejar recurso_visual en null."},
+    "E060_MULTI_TESTLET": {"message": "testlet_id y estimulo_compartido desincronizados.", "fix_hint": "Sincronizarlos o eliminarlos."},
+    "E952_NO_PAYLOAD": {"message": "Ítem sin payload para procesar.", "fix_hint": "Revisar etapas anteriores."},
+    "E959_PIPELINE_FATAL_ERROR": {"message": "Error fatal inesperado en la etapa.", "fix_hint": "Revisar log para más detalles."},
+}
+
+def get_error_info_hard(code: str) -> dict:
+    """Helper to get message and fix_hint from the mock catalog for hard validation."""
+    return MOCK_ERROR_CATALOG_HARD.get(code, {"message": f"Unknown hard error code: {code}.", "fix_hint": None})
+
+
 @register("validate_hard")
 class ValidateHardStage(BaseStage):
     """
@@ -43,12 +64,20 @@ class ValidateHardStage(BaseStage):
 
             # Aunque LLMStage ya lo hace, para BaseStage es bueno tener esta comprobación.
             if not item.payload:
+                code = "E952_NO_PAYLOAD"
+                info = get_error_info_hard(code)
                 current_findings.append(
-                    ReportEntrySchema(code="E952_NO_PAYLOAD", message="El ítem no tiene un payload para validar.", severity="fatal")
+                    ReportEntrySchema(
+                        code=code,
+                        message=info["message"],
+                        field=None,
+                        severity="fatal",
+                        fix_hint=info["fix_hint"]
+                    )
                 )
                 is_valid = False
-                outcome_status = "fatal" # Forzar a fatal
-                summary_message = "Validación dura: Error fatal. No hay payload para procesar."
+                outcome_status = "fatal"
+                summary_message = info["message"]
                 self._set_status(item, outcome_status, summary_message)
                 continue
 
@@ -62,52 +91,63 @@ class ValidateHardStage(BaseStage):
                 # 1. Comprobar que hay exactamente 1 opción correcta
                 correct_options = [opt for opt in item.payload.opciones if opt.es_correcta]
                 if len(correct_options) == 0:
+                    code = "E012_CORRECT_COUNT"
+                    info = get_error_info_hard(code)
                     current_findings.append(
                         ReportEntrySchema(
-                            code="E012_CORRECT_COUNT", # Estandarizado
-                            message="El ítem debe tener exactamente una opción marcada como correcta (0 encontradas).",
+                            code=code,
+                            message=info["message"],
                             field="opciones",
-                            severity="fatal"
+                            severity="fatal",
+                            fix_hint=info["fix_hint"]
                         )
                     )
                     is_valid = False
                 elif len(correct_options) > 1:
+                    code = "E012_CORRECT_COUNT"
+                    info = get_error_info_hard(code)
                     current_findings.append(
                         ReportEntrySchema(
-                            code="E012_CORRECT_COUNT", # Estandarizado
-                            message="El ítem debe tener exactamente una opción marcada como correcta (múltiples encontradas).",
+                            code=code,
+                            message=info["message"],
                             field="opciones",
-                            severity="fatal"
+                            severity="fatal",
+                            fix_hint=info["fix_hint"]
                         )
                     )
                     is_valid = False
 
                 # 2. Comprobar que respuesta_correcta_id coincide con la opción marcada como correcta
                 if item.payload.respuesta_correcta_id:
-                    # Solo verificamos si ya se encontró una opción correcta única, para evitar errores en cascada
                     if len(correct_options) == 1:
                         matching_correct_options_by_id = [
                             opt for opt in correct_options
                             if opt.id == item.payload.respuesta_correcta_id
                         ]
                         if not matching_correct_options_by_id:
+                            code = "E013_ID_NO_MATCH"
+                            info = get_error_info_hard(code)
                             current_findings.append(
                                 ReportEntrySchema(
-                                    code="E013_ID_NO_MATCH", # Estandarizado
-                                    message="El 'respuesta_correcta_id' no coincide con el ID de la única opción marcada como correcta.",
+                                    code=code,
+                                    message=info["message"],
                                     field="respuesta_correcta_id",
-                                    severity="fatal"
+                                    severity="fatal",
+                                    fix_hint=info["fix_hint"]
                                 )
                             )
                             is_valid = False
-                else: # respuesta_correcta_id no está presente o es nulo, lo cual es un error si hay opciones correctas
-                    if len(correct_options) == 1: # Si hay una opción correcta pero no se especifica el ID
+                else: # respuesta_correcta_id is null but there is a correct option
+                    if len(correct_options) == 1:
+                         code = "E013_ID_NO_MATCH"
+                         info = get_error_info_hard(code)
                          current_findings.append(
                             ReportEntrySchema(
-                                code="E013_ID_NO_MATCH", # Reutilizamos el código
-                                message="El 'respuesta_correcta_id' es nulo pero existe una opción marcada como correcta.",
+                                code=code,
+                                message=info["message"],
                                 field="respuesta_correcta_id",
-                                severity="fatal"
+                                severity="fatal",
+                                fix_hint=info["fix_hint"]
                             )
                         )
                          is_valid = False
@@ -117,12 +157,15 @@ class ValidateHardStage(BaseStage):
                 option_ids = set()
                 for i, opcion in enumerate(item.payload.opciones):
                     if opcion.id in option_ids:
+                        code = "E011_DUP_ID"
+                        info = get_error_info_hard(code)
                         current_findings.append(
                             ReportEntrySchema(
-                                code="E011_DUP_ID", # Estandarizado
-                                message=f"ID de opción duplicado: '{opcion.id}' en opciones[{i}].",
+                                code=code,
+                                message=info["message"],
                                 field=f"opciones[{i}].id",
-                                severity="fatal"
+                                severity="fatal",
+                                fix_hint=info["fix_hint"]
                             )
                         )
                         is_valid = False
@@ -131,95 +174,94 @@ class ValidateHardStage(BaseStage):
                 # 4. Validación específica para tipo_reactivo "completamiento"
                 if item.payload.tipo_reactivo == TipoReactivo.COMPLETAMIENTO:
                     holes = item.payload.enunciado_pregunta.count("___")
-                    if holes == 0:
-                        current_findings.append(
-                            ReportEntrySchema(
-                                code="E031_COMPLETAMIENTO_SIN_HUECOS", # Nuevo código estandarizado
-                                message="El tipo de reactivo 'completamiento' requiere al menos un hueco ('___') en el enunciado.",
-                                field="enunciado_pregunta",
-                                severity="fatal"
-                            )
-                        )
-                        is_valid = False
-                    else: # Solo si hay huecos, verificamos la consistencia de segmentos
+                    # Removed check for holes == 0 as E031 is not in YAML and E030 is for segment mismatch
+                    if holes > 0: # Only if there are holes, verify segment consistency
                         for i, opt in enumerate(item.payload.opciones):
-                            # Se asume que los segmentos en la opción están separados por un patrón específico.
-                            # Este re.split es específico del diseño actual.
                             segs = re.split(r"\s*[-,yY]\s*|\s+y\s+", opt.texto)
                             if len(segs) != holes:
+                                code = "E030_COMPLET_SEGMENTS"
+                                info = get_error_info_hard(code)
                                 current_findings.append(
                                     ReportEntrySchema(
-                                        code="E030_COMPLET_SEGMENTS", # Estandarizado
-                                        message=f"La opción {opt.id} tiene {len(segs)} segmentos, pero el enunciado tiene {holes} huecos. Deben coincidir.",
+                                        code=code,
+                                        message=info["message"],
                                         field=f"opciones[{i}].texto",
-                                        severity="fatal"
+                                        severity="fatal",
+                                        fix_hint=info["fix_hint"]
                                     )
                                 )
                                 is_valid = False
 
-                # --- NUEVA VALIDACIÓN: E060_MULTI_TESTLET (Inconsistencia testlet_id y estimulo_compartido) ---
+                # --- VALIDACIÓN: E060_MULTI_TESTLET (Inconsistencia testlet_id y estimulo_compartido) ---
                 testlet_id_present = item.payload.testlet_id is not None
                 estimulo_compartido_present = (item.payload.estimulo_compartido is not None and
                                                item.payload.estimulo_compartido.strip() != "")
 
-                if testlet_id_present != estimulo_compartido_present: # Uno está presente y el otro no
+                if testlet_id_present != estimulo_compartido_present:
+                    code = "E060_MULTI_TESTLET"
+                    info = get_error_info_hard(code)
                     current_findings.append(
                         ReportEntrySchema(
-                            code="E060_MULTI_TESTLET",
-                            message="Inconsistencia en los campos 'testlet_id' y 'estimulo_compartido'. Ambos deben estar presentes o ausentes simultáneamente para un testlet.",
+                            code=code,
+                            message=info["message"],
                             field="testlet_id / estimulo_compartido",
-                            severity="fatal"
+                            severity="fatal",
+                            fix_hint=info["fix_hint"]
                         )
                     )
                     is_valid = False
-                # --- FIN NUEVA VALIDACIÓN ---
 
 
-                # 5. Validaciones de URL para recurso_visual
-                # La validación Pydantic de HttpUrl ya se encarga de que sea un formato válido.
-                # Aquí solo verificamos que si existe, sea del tipo correcto.
+                # 5. URL Validations for recurso_visual
                 if item.payload.recurso_visual and not isinstance(item.payload.recurso_visual.referencia, HttpUrl):
+                    code = "E050_BAD_URL"
+                    info = get_error_info_hard(code)
                     current_findings.append(
                         ReportEntrySchema(
-                            code="E050_BAD_URL", # Estandarizado
-                            message=f"La referencia URL del recurso visual es inválida o no es una HttpUrl: {item.payload.recurso_visual.referencia}.",
+                            code=code,
+                            message=info["message"],
                             field="recurso_visual.referencia",
-                            severity="fatal"
+                            severity="fatal",
+                            fix_hint=info["fix_hint"]
                         )
                     )
                     is_valid = False
 
             except ValidationError as e:
-                # Si la validación Pydantic del modelo completo falló (capturado por model_validate de ItemPayloadSchema)
                 for error in e.errors():
+                    code = "E001_SCHEMA"
+                    info = get_error_info_hard(code)
                     current_findings.append(
                         ReportEntrySchema(
-                            code="E001_SCHEMA", # Estandarizado para fallos de esquema Pydantic
-                            message=f"Fallo de validación de esquema Pydantic en campo '{'.'.join(map(str, error['loc']))}': {error['msg']}",
+                            code=code,
+                            message=info["message"],
                             field=".".join(map(str, error['loc'])) if error['loc'] else 'payload',
-                            severity="fatal"
+                            severity="fatal",
+                            fix_hint=info["fix_hint"]
                         )
                     )
                 is_valid = False
             except Exception as e:
-                # Captura cualquier otro error inesperado durante las validaciones duras
+                code = "E959_PIPELINE_FATAL_ERROR"
+                info = get_error_info_hard(code)
                 current_findings.append(
                     ReportEntrySchema(
-                        code="E959_PIPELINE_FATAL_ERROR", # Estandarizado para errores fatales de pipeline
-                        message=f"Error inesperado durante la validación dura: {e}",
-                        severity="fatal"
+                        code=code,
+                        message=info["message"],
+                        field=None,
+                        severity="fatal",
+                        fix_hint=info["fix_hint"]
                     )
                 )
                 is_valid = False
 
             item.findings.extend(current_findings)
 
-            # Determinar el estado final del ítem basado en los findings acumulados
             if any(f.severity == "fatal" for f in current_findings):
                 outcome_status = "fatal"
                 summary_message = f"Validación dura: Error fatal. {len(current_findings)} errores críticos encontrados."
-            elif not is_valid: # Esto es un caso que no debería ocurrir si todos los errores son fatal
-                outcome_status = "error" # En validate_hard, todos los errores son fatales, así que esta rama no se alcanzaría si is_valid=False y hay findings.
+            elif not is_valid:
+                outcome_status = "error"
                 summary_message = "Validación dura: Falló (errores no fatales, lo cual es inesperado para esta etapa)."
             else:
                 outcome_status = "success"
