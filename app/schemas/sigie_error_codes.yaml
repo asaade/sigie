@@ -2,286 +2,290 @@ version: "2025-06-29"
 
 ESTILO:
 
-* code: E020\_STEM\_LENGTH
+* code: E020_STEM_LENGTH
   message: "Enunciado excede el límite de longitud."
-  fix\_hint: "Recortar el enunciado sin perder claridad."
+  fix_hint: "Recortar el enunciado sin perder claridad."
   severity: error
 
-* code: E040\_OPTION\_LENGTH
+* code: E040_OPTION_LENGTH
   message: "Longitud de opciones desbalanceada o demasiado extensa."
-  fix\_hint: "Igualar o acortar el texto de las opciones según corresponda."
+  fix_hint: "Igualar o acortar el texto de las opciones según corresponda."
   severity: error
-  details\_allowed:
-
+  details_allowed:
   * excess
   * variation
 
-* code: E080\_MATH\_FORMAT
+* code: E080_MATH_FORMAT
   message: "Mezcla de Unicode y LaTeX o formato matemático inconsistente."
-  fix\_hint: "Usar un solo sistema de notación de forma consistente."
+  fix_hint: "Usar un solo sistema de notación de forma consistente."
   severity: error
 
-* code: E091\_CORRECTA\_SIMILAR\_STEM
+* code: E091_CORRECTA_SIMILAR_STEM
   message: "Opción correcta demasiado similar al enunciado; revela la respuesta."
-  fix\_hint: "Reformular enunciado u opción para evitar pistas obvias."
+  fix_hint: "Reformular enunciado u opción para evitar pistas obvias."
   severity: error
 
-* code: E106\_COMPLEX\_OPTION\_TYPE
+* code: E106_COMPLEX_OPTION_TYPE
   message: "Se usó “todas las anteriores”, “ninguna de las anteriores” o combinaciones equivalentes."
-  fix\_hint: "Sustituir por distractores específicos."
+  fix_hint: "Sustituir por distractores específicos."
   severity: error
 
-* code: W101\_STEM\_NEG\_LOWER
+* code: W101_STEM_NEG_LOWER
   message: "Negación en minúscula en el enunciado; debe ir en MAYÚSCULAS."
-  fix\_hint: "Reformular en positivo o poner la negación en mayúsculas."
+  fix_hint: "Reformular en positivo o poner la negación en mayúsculas."
   severity: warning
 
-* code: W102\_ABSOL\_STEM
+* code: W102_ABSOL_STEM
   message: "Uso de absolutos en el enunciado."
-  fix\_hint: "Sustituir absolutos por formulaciones más matizadas."
+  fix_hint: "Sustituir absolutos por formulaciones más matizadas."
   severity: warning
 
-* code: W103\_HEDGE\_STEM
+* code: W103_HEDGE_STEM
   message: "Expresión hedging innecesaria en el enunciado."
-  fix\_hint: "Eliminar o precisar la afirmación."
+  fix_hint: "Eliminar o precisar la afirmación."
   severity: warning
 
-* code: W105\_LEXICAL\_CUE
+* code: W105_LEXICAL_CUE
   message: "Palabra clave del enunciado solo presente en la opción correcta."
-  fix\_hint: "Añadir la palabra clave a un distractor o reformular."
+  fix_hint: "Añadir la palabra clave a un distractor o reformular."
   severity: warning
 
-* code: W108\_ALT\_VAGUE
-  message: "alt\_text vago, genérico o con información irrelevante."
-  fix\_hint: "Describir los elementos clave relevantes para la accesibilidad."
+* code: W108_ALT_VAGUE
+  message: "alt_text vago, genérico o con información irrelevante."
+  fix_hint: "Describir los elementos clave relevantes para la accesibilidad."
   severity: warning
 
-* code: W109\_PLAUSIBILITY
+* code: W109_PLAUSIBILITY
   message: "Distractor demasiado absurdo o fácilmente descartable."
-  fix\_hint: "Ajustar el distractor para representar un error conceptual plausible."
+  fix_hint: "Ajustar el distractor para representar un error conceptual plausible."
   severity: warning
 
-* code: W112\_DISTRACTOR\_SIMILAR
+* code: W112_DISTRACTOR_SIMILAR
   message: "Dos o más distractores son demasiado similares entre sí."
-  fix\_hint: "Reformular distractores para representar errores diferentes."
+  fix_hint: "Reformular distractores para representar errores diferentes."
   severity: warning
 
-* code: W113\_VAGUE\_QUANTIFIER
+* code: W113_VAGUE_QUANTIFIER
   message: "Cuantificador vago en el enunciado."
-  fix\_hint: "Sustituir por cuantificador preciso o reformular."
+  fix_hint: "Sustituir por cuantificador preciso o reformular."
   severity: warning
 
-* code: W114\_OPTION\_NO\_PERIOD
+* code: W114_OPTION_NO_PERIOD
   message: "Las opciones terminan en punto final."
-  fix\_hint: "Eliminar el punto final."
+  fix_hint: "Eliminar el punto final."
   severity: warning
 
-* code: W115\_OPTION\_NO\_AND\_IN\_SERIES
+* code: W115_OPTION_NO_AND_IN_SERIES
   message: "Conjunción “y” u “o” antes del último elemento de una serie con comas."
-  fix\_hint: "Eliminar la conjunción redundante."
+  fix_hint: "Eliminar la conjunción redundante."
   severity: warning
 
-* code: W125\_DESCRIPCION\_DEFICIENTE
+* code: W125_DESCRIPCION_DEFICIENTE
   message: "Descripción visual poco informativa o faltante."
-  fix\_hint: "Mejorar la descripción para que sea concisa y completa."
+  fix_hint: "Mejorar la descripción para que sea concisa y completa."
   severity: warning
 
-* code: W130\_LANGUAGE\_MISMATCH
+* code: W130_LANGUAGE_MISMATCH
   message: "Mezcla inadvertida de idiomas en el ítem."
-  fix\_hint: "Unificar el idioma del enunciado y las opciones."
+  fix_hint: "Unificar el idioma del enunciado y las opciones."
+  severity: warning
+
+* code: W199_UNCATEGORIZED_STYLE # Nuevo código para problemas de estilo no clasificados
+  message: "Problema de estilo no clasificado."
+  fix_hint: "Revisar manualmente el estilo del ítem."
   severity: warning
 
 LOGICO:
 
-* code: E070\_NO\_CORRECT\_RATIONALE
+* code: E070_NO_CORRECT_RATIONALE
   message: "Falta la justificación de la opción correcta."
-  fix\_hint: "Añadir texto explicativo en la justificación de la opción correcta."
+  fix_hint: "Añadir texto explicativo en la justificación de la opción correcta."
   severity: error
 
-* code: E071\_CALCULO\_INCORRECTO
+* code: E071_CALCULO_INCORRECTO
   message: "Cálculo incorrecto en la opción correcta."
-  fix\_hint: "Verificar procedimiento matemático y resultado final."
+  fix_hint: "Verificar procedimiento matemático y resultado final."
   severity: error
 
-* code: E072\_UNIDADES\_INCONSISTENTES
+* code: E072_UNIDADES_INCONSISTENTES
   message: "Unidades o magnitudes inconsistentes entre enunciado y opciones."
-  fix\_hint: "Asegurar consistencia de unidades y magnitudes."
+  fix_hint: "Asegurar consistencia de unidades y magnitudes."
   severity: error
 
-* code: E073\_CONTRADICCION\_INTERNA
+* code: E073_CONTRADICCION_INTERNA
   message: "Información contradictoria o inconsistencia lógica interna."
-  fix\_hint: "Revisar y corregir la coherencia de datos y principios."
+  fix_hint: "Revisar y corregir la coherencia de datos y principios."
   severity: fatal
 
-* code: E074\_NIVEL\_COGNITIVO\_INAPROPIADO
+* code: E074_NIVEL_COGNITIVO_INAPROPIADO
   message: "El ítem no coincide con el nivel cognitivo declarado."
-  fix\_hint: "Ajustar el nivel declarado o reformular el ítem."
+  fix_hint: "Ajustar el nivel declarado o reformular el ítem."
   severity: fatal
 
-* code: E075\_DESCONOCIDO\_LOGICO
+* code: E075_DESCONOCIDO_LOGICO
   message: "Error lógico no clasificado."
-  fix\_hint: "Revisar manualmente la lógica del ítem."
+  fix_hint: "Revisar manualmente la lógica del ítem."
   severity: fatal
 
-* code: E092\_JUSTIFICA\_INCONGRUENTE
+* code: E092_JUSTIFICA_INCONGRUENTE
   message: "La justificación contradice la opción correspondiente."
-  fix\_hint: "Alinear la justificación con el contenido de la opción."
+  fix_hint: "Alinear la justificación con el contenido de la opción."
   severity: error
 
 ESTRUCTURAL:
 
-* code: E001\_SCHEMA
+* code: E001_SCHEMA
   message: "El JSON del ítem no cumple el esquema."
-  fix\_hint: "Regenerar el ítem siguiendo el esquema."
+  fix_hint: "Regenerar el ítem siguiendo el esquema."
   severity: fatal
 
-* code: E010\_NUM\_OPTIONS
+* code: E010_NUM_OPTIONS
   message: "El número de opciones debe ser 3 o 4."
-  fix\_hint: "Ajustar la cantidad de opciones."
+  fix_hint: "Ajustar la cantidad de opciones."
   severity: fatal
 
-* code: E011\_DUP\_ID
+* code: E011_DUP_ID
   message: "IDs de opciones duplicados."
-  fix\_hint: "Usar IDs únicos."
+  fix_hint: "Usar IDs únicos."
   severity: fatal
 
-* code: E012\_CORRECT\_COUNT
+* code: E012_CORRECT_COUNT
   message: "Debe haber exactamente una opción correcta."
-  fix\_hint: "Dejar solo una opción con es\_correcta: true."
+  fix_hint: "Dejar solo una opción con es_correcta: true."
   severity: fatal
 
-* code: E013\_ID\_NO\_MATCH
-  message: "respuesta\_correcta\_id no coincide con la opción correcta."
-  fix\_hint: "Sincronizar respuesta\_correcta\_id con el id de la opción correcta."
+* code: E013_ID_NO_MATCH
+  message: "respuesta_correcta_id no coincide con la opción correcta."
+  fix_hint: "Sincronizar respuesta_correcta_id con el id de la opción correcta."
   severity: fatal
 
-* code: E030\_COMPLET\_SEGMENTS
+* code: E030_COMPLET_SEGMENTS
   message: "Segmentos de opciones no coinciden con huecos del enunciado."
-  fix\_hint: "Alinear segmentos con huecos."
+  fix_hint: "Alinear segmentos con huecos."
   severity: fatal
 
-* code: E050\_BAD\_URL
+* code: E050_BAD_URL
   message: "URL no válida o inaccesible."
-  fix\_hint: "Proveer URL accesible o dejar recurso\_visual en null."
+  fix_hint: "Proveer URL accesible o dejar recurso_visual en null."
   severity: fatal
 
-* code: E060\_MULTI\_TESTLET
-  message: "testlet\_id y estimulo\_compartido desincronizados."
-  fix\_hint: "Sincronizarlos o eliminarlos."
+* code: E060_MULTI_TESTLET
+  message: "testlet_id y estimulo_compartido desincronizados."
+  fix_hint: "Sincronizarlos o eliminarlos."
   severity: fatal
 
 POLITICAS:
 
-* code: E090\_CONTENIDO\_OFENSIVO
+* code: E090_CONTENIDO_OFENSIVO
   message: "Contenido ofensivo, obsceno, violento o ilegal."
-  fix\_hint: "Reescribir para eliminar contenido inapropiado."
+  fix_hint: "Reescribir para eliminar contenido inapropiado."
   severity: fatal
 
-* code: E120\_SESGO\_GENERO
+* code: E120_SESGO_GENERO
   message: "Sesgo o estereotipos de género."
-  fix\_hint: "Usar lenguaje neutral o ejemplos equilibrados."
+  fix_hint: "Usar lenguaje neutral o ejemplos equilibrados."
   severity: error
 
-* code: E121\_SESGO\_CULTURAL\_ETNICO
+* code: E121_SESGO_CULTURAL_ETNICO
   message: "Sesgo cultural o étnico."
-  fix\_hint: "Usar referencias culturalmente sensibles."
+  fix_hint: "Usar referencias culturalmente sensibles."
   severity: error
 
-* code: E129\_LENGUAJE\_DISCRIMINATORIO
+* code: E129_LENGUAJE_DISCRIMINATORIO
   message: "Lenguaje discriminatorio o peyorativo."
-  fix\_hint: "Sustituir por formulaciones inclusivas."
+  fix_hint: "Sustituir por formulaciones inclusivas."
   severity: error
 
-* code: E130\_ACCESIBILIDAD\_CONTENIDO
+* code: E130_ACCESIBILIDAD_CONTENIDO
   message: "Contenido no accesible."
-  fix\_hint: "Proveer alternativas textuales o formatos accesibles."
+  fix_hint: "Proveer alternativas textuales o formatos accesibles."
   severity: error
 
-* code: E140\_TONO\_INAPROPIADO\_ACADEMICO
+* code: E140_TONO_INAPROPIADO_ACADEMICO
   message: "Tono o lenguaje inapropiado para contexto académico."
-  fix\_hint: "Ajustar a registro formal."
+  fix_hint: "Ajustar a registro formal."
   severity: error
 
-* code: W141\_CONTENIDO\_TRIVIAL
+* code: W141_CONTENIDO_TRIVIAL
   message: "Contenido trivial o irrelevante."
-  fix\_hint: "Alinear con objetivos de aprendizaje."
+  fix_hint: "Alinear con objetivos de aprendizaje."
   severity: warning
 
-* code: W142\_SESGO\_IMPLICITO
+* code: W142_SESGO_IMPLICITO
   message: "Sesgo implícito leve detectado."
-  fix\_hint: "Revisar ejemplos y lenguaje para neutralidad."
+  fix_hint: "Revisar ejemplos y lenguaje para neutralidad."
   severity: warning
 
-LLM\_SISTEMA:
+LLM_SISTEMA:
 
-* code: E901\_LLM\_GEN\_QUALITY\_LOW
+* code: E901_LLM_GEN_QUALITY_LOW
   message: "Contenido generado incoherente o de baja calidad."
-  fix\_hint: "Reintentar generación o ajustar prompt."
+  fix_hint: "Reintentar generación o ajustar prompt."
   severity: fatal
 
-* code: E902\_LLM\_CONTEXT\_OVERFLOW
+* code: E902_LLM_CONTEXT_OVERFLOW
   message: "Límite de tokens excedido."
-  fix\_hint: "Reducir tamaño de input o usar modelo con mayor ventana."
+  fix_hint: "Reducir tamaño de input o usar modelo con mayor ventana."
   severity: fatal
 
-* code: E903\_LLM\_SAFETY\_VIOLATION
+* code: E903_LLM_SAFETY_VIOLATION
   message: "Contenido generado viola políticas de seguridad."
-  fix\_hint: "Ajustar prompt para evitar contenido sensible."
+  fix_hint: "Ajustar prompt para evitar contenido sensible."
   severity: fatal
 
-* code: E904\_LLM\_RESPONSE\_FORMAT\_ERROR
+* code: E904_LLM_RESPONSE_FORMAT_ERROR
   message: "La respuesta del LLM no es JSON válido o falta campos."
-  fix\_hint: "Revisar prompt para asegurar formato correcto."
+  fix_hint: "Revisar prompt para asegurar formato correcto."
   severity: fatal
 
-* code: E905\_LLM\_CALL\_FAILED
+* code: E905_LLM_CALL_FAILED
   message: "Fallo en la llamada al LLM."
-  fix\_hint: "Revisar configuración o conexión."
+  fix_hint: "Revisar configuración o conexión."
   severity: fatal
 
-* code: E907\_UNEXPECTED\_LLM\_PROCESSING\_ERROR
+* code: E907_UNEXPECTED_LLM_PROCESSING_ERROR
   message: "Error inesperado procesando la respuesta del LLM."
-  fix\_hint: "Revisar logs para detalles."
+  fix_hint: "Revisar logs para detalles."
   severity: fatal
 
-PIPELINE\_CONTROL:
+PIPELINE_CONTROL:
 
-* code: E951\_PROMPT\_NOT\_FOUND
+* code: E951_PROMPT_NOT_FOUND
   message: "Prompt de etapa no encontrado."
-  fix\_hint: "Verificar ruta del archivo de prompt."
+  fix_hint: "Verificar ruta del archivo de prompt."
   severity: fatal
 
-* code: E952\_NO\_PAYLOAD
+* code: E952_NO_PAYLOAD
   message: "Ítem sin payload para procesar."
-  fix\_hint: "Revisar etapas anteriores."
+  fix_hint: "Revisar etapas anteriores."
   severity: fatal
 
-* code: E953\_ITEM\_ID\_MISMATCH
-  message: "item\_id devuelto no coincide con el esperado."
-  fix\_hint: "Revisar lógica de refinador."
+* code: E953_ITEM_ID_MISMATCH
+  message: "item_id devuelto no coincide con el esperado."
+  fix_hint: "Revisar lógica de refinador."
   severity: fatal
 
-* code: E954\_GEN\_INIT\_MISMATCH
+* code: E954_GEN_INIT_MISMATCH
   message: "Cantidad de ítems generados no coincide con la solicitada."
-  fix\_hint: "Revisar parámetros de generación."
+  fix_hint: "Revisar parámetros de generación."
   severity: fatal
 
-* code: E955\_GEN\_NO\_SUCCESSFUL\_OUTPUT
+* code: E955_GEN_NO_SUCCESSFUL_OUTPUT
   message: "Ningún ítem con estado success en la generación."
-  fix\_hint: "Revisar prompt o modelo."
+  fix_hint: "Revisar prompt o modelo."
   severity: fatal
 
-* code: E956\_LLM\_RESPONSE\_FORMAT\_INVALID
+* code: E956_LLM_RESPONSE_FORMAT_INVALID
   message: "Lista de ítems generada con formato inválido."
-  fix\_hint: "Revisar prompt de generación."
+  fix_hint: "Revisar prompt de generación."
   severity: fatal
 
-* code: E957\_LLM\_ITEM\_COUNT\_MISMATCH
+* code: E957_LLM_ITEM_COUNT_MISMATCH
   message: "Número de ítems generados distinto al solicitado."
-  fix\_hint: "Ajustar prompt o modelo."
+  fix_hint: "Ajustar prompt o modelo."
   severity: fatal
 
-* code: E959\_PIPELINE\_FATAL\_ERROR
+* code: E959_PIPELINE_FATAL_ERROR
   message: "Error fatal inesperado en la etapa."
-  fix\_hint: "Revisar log para más detalles."
+  fix_hint: "Revisar log para más detalles."
   severity: fatal

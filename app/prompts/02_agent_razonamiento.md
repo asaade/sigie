@@ -8,17 +8,12 @@ Reglas fatales
 * Todos los campos obligatorios deben existir y no ser nulos; de lo contrario reporta E001_SCHEMA con severity "fatal".
 
 Entrada esperada
-Recibirás un objeto con al menos estos campos:
+Recibirás un objeto JSON con la siguiente estructura:
 
 item_id                     string (UUID)
-enunciado_pregunta          string
-opciones[]                  lista de objetos
-id                        string
-texto                     string
-es_correcta               boolean
-justificacion             string
-respuesta_correcta_id       string
-metadata.nivel_cognitivo    string opcional
+item_payload                objeto completo del ítem (con campos como enunciado_pregunta, opciones[], etc.)
+metadata_context:
+    nivel_cognitivo         string (ej. "recordar", "aplicar", "analizar")
 
 Flujo de validacion
 1. Verifica que exista exactamente una opcion correcta y que respuesta_correcta_id coincida (E012 o E013).
