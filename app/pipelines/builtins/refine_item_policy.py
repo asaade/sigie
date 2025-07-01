@@ -7,7 +7,7 @@ from pydantic import BaseModel # Necesario para Type[BaseModel]
 
 from ..registry import register
 from app.schemas.models import Item
-from app.schemas.item_schemas import RefinementResultSchema
+from app.schemas.item_schemas import RefinementResultSchema, ReportEntrySchema # Importar ReportEntrySchema
 from app.pipelines.abstractions import LLMStage
 from app.pipelines.utils.stage_helpers import clean_specific_errors, handle_item_id_mismatch_refinement # handle_item_id_mismatch_refinement se mantiene como helper por ahora
 
@@ -15,7 +15,7 @@ from app.pipelines.utils.stage_helpers import clean_specific_errors, handle_item
 class RefinePolicyStage(LLMStage):
     """
     Etapa de refinamiento que corrige un ítem basándose en los hallazgos
-    de políticas (con severidad 'warning') detectados previamente.
+    de políticas (con severidad 'warning' o 'error') detectados previamente.
     """
 
     def _get_expected_schema(self) -> Type[BaseModel]:
@@ -26,12 +26,18 @@ class RefinePolicyStage(LLMStage):
         """
         Prepara el string de input para el LLM.
         """
-        logic_problems_to_fix = [f for f in item.findings if f.severity == 'error'] # O el criterio que uses para filtrar para el LLM
+        # CORRECCIÓN: Filtrar hallazgos de severidad 'error' O 'warning' para esta etapa de refinamiento de política.
+        # Asumo que todos los findings relevantes para política ya están en item.findings
+        relevant_problems_to_fix: List[ReportEntrySchema] = [
+            f for f in item.findings if f.severity in ['error', 'warning']
+            # Opcional: añadir un filtro por tipo de código si la categoría 'POLITICAS' se distingue
+            # if f.code.startswith('E') or f.code.startswith('W') para códigos de política
+        ]
 
         input_payload = {
             "item_id": str(item.payload.item_id), # CAMBIO CRÍTICO: Convertir UUID a string
             "item_payload": item.payload.model_dump(mode="json"),
-            "problems": [p.model_dump(mode="json") for p in logic_problems_to_fix]
+            "problems": [p.model_dump(mode="json") for p in relevant_problems_to_fix]
         }
         return json.dumps(input_payload, indent=2, ensure_ascii=False)
 

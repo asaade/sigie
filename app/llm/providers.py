@@ -144,8 +144,9 @@ class GeminiClient(BaseLLMClient):
         super().__init__(settings)
         self._client = genai.Client(api_key=self.settings.google_api_key)
 
-        if self.settings.gemini_base_url:
-            self.logger.warning("gemini_base_url not directly supported by genai.Client() via api_endpoint in this way. Check new SDK docs.")
+        # SECCIÓN ELIMINADA: La advertencia sobre gemini_base_url no es necesaria si no se usa.
+        # if self.settings.gemini_base_url:
+        #     self.logger.warning("gemini_base_url not directly supported by genai.Client() via api_endpoint in this way. Check new SDK docs.")
 
     async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
         system_instruction_content = ""
@@ -166,14 +167,13 @@ class GeminiClient(BaseLLMClient):
             "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
         }
 
-        # Filter out 'timeout' explicitly from kwargs before passing to config or generate_content
-        # as it's not a direct parameter of generate_content or its config for Gemini.
+        # Filtra 'timeout' explícitamente antes de pasarlo a la configuración o generate_content
         if 'timeout' in kwargs:
             self.logger.warning(
                 f"Removed unsupported 'timeout' argument for Gemini's generate_content call in stage "
                 f"(check new SDK docs for timeout handling if needed). Value was: {kwargs['timeout']}"
             )
-            kwargs.pop("timeout") # Remove the unsupported argument
+            kwargs.pop("timeout") # Elimina el argumento no soportado
 
         generate_content_config = types.GenerateContentConfig(
             **generate_content_config_params,
@@ -184,7 +184,7 @@ class GeminiClient(BaseLLMClient):
              model=model_name,
              contents=gemini_contents,
              config=generate_content_config,
-             **kwargs # Pass only supported kwargs; timeout has been removed
+             **kwargs # Pasa solo los kwargs soportados; 'timeout' ya ha sido eliminado
         )
 
     def _parse_response(self, res: Any) -> LLMResponse: # Changed type hint from GenerateContentResponse
