@@ -22,9 +22,9 @@ field, error_code, original, corrected, reason.
 
 Restricciones especificas
 
-* Enunciado max 250 caracteres; opciones max 140.
-* No cambies el numero de opciones.
-* Justificacion debe coincidir con el contenido de la opcion correcta.
+* Enunciado max 250 caracteres o 60 palabras; opciones max 140 caracteres o 30 palabras. **Al corregir, prioriza la coherencia lógica y la precisión del contenido. Evita recortes que comprometan la claridad o el valor pedagógico.**
+* No cambies el numero de opciones (debe mantenerse entre 3 y 4).
+* Justificacion debe coincidir con el contenido de la opcion correspondiente.
 
 Salida
 item_id                    string (UUID)
@@ -59,6 +59,7 @@ E072_UNIDADES_INCONSISTENTES  Unidades o magnitudes inconsistentes entre enuncia
 E073_CONTRADICCION_INTERNA    Informacion contradictoria o inconsistencia logica interna.      fatal
 E074_NIVEL_COGNITIVO_INAPROPIADO El item no coincide con el nivel cognitivo declarado.          fatal
 E075_DESCONOCIDO_LOGICO       Error logico no clasificado.                                     fatal
+E076_DISTRACTOR_RATIONALE_MISMATCH La justificación del distractor no es clara o no se alinea con un error conceptual plausible. error
 E092_JUSTIFICA_INCONGRUENTE   La justificacion contradice la opcion correspondiente.            error
 
 Notas

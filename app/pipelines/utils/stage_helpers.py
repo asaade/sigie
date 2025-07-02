@@ -145,7 +145,6 @@ def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]
 
     for _ in range(n_items):
         item_metadata = MetadataSchema(
-            idioma_item=validated_user_params.idioma_item,
             area=validated_user_params.area,
             asignatura=validated_user_params.asignatura,
             tema=validated_user_params.tema,

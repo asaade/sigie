@@ -35,6 +35,15 @@ stages:
       # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior (ahora es un patrón)
 
+  # XX. Ciclo de validación de contenido
+  - name: validate_content_validity # Nombre de la clase
+    params:
+      prompt: "XX_agent_content_validity.md"
+      provider: gemini # Ejemplo: Usar Gemini para validación lógica
+      model: gemini-2.0-flash
+      temperature: 0.3 # Baja temperatura para precisión en validación
+      max_tokens: 2500
+
   # 4. Ciclo de validación y refinamiento de políticas
   - name: validate_policy # Nombre de la clase ValidatePolicyStage (Validador)
     params:

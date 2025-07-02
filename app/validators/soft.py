@@ -77,9 +77,16 @@ def _check_distractor_similarity(options: List[Dict]) -> Optional[Dict]:
         return {
             "code": "W112_DISTRACTOR_SIMILAR",
             "message": info["message"],
-            "severity": info["severity"] # Añadido 'severity'
+            "severity": info["severity"]
         }
     return None
+
+# ELIMINADO: _check_plausibility_w109() si existía una función explícita para W109 de contenido.
+# La validación de W109_PLAUSIBILITY en soft.py se dejará para problemas de "absurdez" superficial/estilística,
+# no para la plausibilidad conceptual profunda que ahora es de E202_DISTRACTOR_CONCEPTUAL_FLAW.
+# Si existía código explícito en soft.py para W109 que realizaba un análisis de contenido profundo, se eliminaría aquí.
+# Basado en el código actual, W109 no tiene una función dedicada.
+
 
 def _check_stem_correct_similarity(item: Dict) -> Optional[Dict]:
     stem_text = item.get("enunciado_pregunta", "")
@@ -88,7 +95,7 @@ def _check_stem_correct_similarity(item: Dict) -> Optional[Dict]:
     correct = next((o for o in options if o.get("id") == correct_id), None)
     distractors = [o for o in options if o.get("id") != correct_id]
     if not correct or not distractors:
-        return None
+        return [] # Return empty list to match new expected type for alt_text_issues in soft_validate
     correct_sim = _semantic_similarity(stem_text, correct["texto"])
     distractor_sim = [_semantic_similarity(stem_text, d["texto"]) for d in distractors]
     if correct_sim > 0.8 and all(ds < 0.5 for ds in distractor_sim):
@@ -96,7 +103,7 @@ def _check_stem_correct_similarity(item: Dict) -> Optional[Dict]:
         return {
             "code": "E091_CORRECTA_SIMILAR_STEM",
             "message": info["message"],
-            "severity": info["severity"] # Añadido 'severity'
+            "severity": info["severity"]
         }
     return None
 
@@ -117,7 +124,7 @@ def _check_alt_text(item: Dict) -> List[Dict]:
         issues.append({
             "code": "W108_ALT_VAGUE",
             "message": info["message"],
-            "severity": info["severity"] # Añadido 'severity'
+            "severity": info["severity"]
         })
     return issues
 
@@ -129,7 +136,7 @@ def _check_quantifier_vagueness(stem_text: str) -> Optional[Dict]:
             return {
                 "code": "W113_VAGUE_QUANTIFIER",
                 "message": info["message"],
-                "severity": info["severity"] # Añadido 'severity'
+                "severity": info["severity"]
             }
     return None
 
@@ -159,7 +166,7 @@ def soft_validate(item: Dict) -> List[Dict]:
                     "code": code,
                     "message": info["message"],
                     "field": f"opciones[{op.get('id', idx)}].texto",
-                    "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                    "severity": info["severity"],
                     "fix_hint": info["fix_hint"],
                     "details": "excess",
                 })
@@ -171,7 +178,7 @@ def soft_validate(item: Dict) -> List[Dict]:
                 "code": code,
                 "message": info["message"],
                 "field": "opciones",
-                "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                "severity": info["severity"],
                 "fix_hint": info["fix_hint"],
                 "details": "variation",
             })
@@ -183,9 +190,9 @@ def soft_validate(item: Dict) -> List[Dict]:
     if alt_text_issues:
         for issue in alt_text_issues:
             # issue ya contiene code, message y severity de _check_alt_text
-            info = get_error_info(issue["code"]) # Para obtener el fix_hint si no está ya en issue
+            info = get_error_info(issue["code"])
             findings.append({
-                **issue, # Ya incluye code, message, severity
+                **issue,
                 "field": issue.get("field", "recurso_visual.alt_text"),
                 "fix_hint": info["fix_hint"],
                 "details": None,
@@ -199,7 +206,7 @@ def soft_validate(item: Dict) -> List[Dict]:
             "code": code,
             "message": info["message"],
             "field": "enunciado_pregunta",
-            "severity": info["severity"], # Usa la severidad del catálogo centralizado
+            "severity": info["severity"],
             "fix_hint": info["fix_hint"],
             "details": None,
         })
@@ -209,9 +216,9 @@ def soft_validate(item: Dict) -> List[Dict]:
         sim_corr_finding = _check_stem_correct_similarity(item)
         if sim_corr_finding:
             # sim_corr_finding ya contiene code, message y severity
-            info = get_error_info(sim_corr_finding["code"]) # Para obtener el fix_hint si no está ya en sim_corr_finding
+            info = get_error_info(sim_corr_finding["code"])
             findings.append({
-                **sim_corr_finding, # Ya incluye code, message, severity
+                **sim_corr_finding,
                 "field": f"opciones[{next((o for o in options if o['id'] == correct_id), {}).get('id', correct_id)}].texto",
                 "fix_hint": info["fix_hint"],
                 "details": None,
@@ -228,7 +235,7 @@ def soft_validate(item: Dict) -> List[Dict]:
                 "code": code,
                 "message": info["message"],
                 "field": f"opciones[{opt.get('id', i)}].texto",
-                "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                "severity": info["severity"],
                 "fix_hint": info["fix_hint"]
             })
 
@@ -242,7 +249,7 @@ def soft_validate(item: Dict) -> List[Dict]:
                 "code": code,
                 "message": info["message"],
                 "field": f"opciones[{opt.get('id', i)}].texto",
-                "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                "severity": info["severity"],
                 "fix_hint": info["fix_hint"]
             })
 
@@ -254,7 +261,7 @@ def soft_validate(item: Dict) -> List[Dict]:
             "code": code,
             "message": info["message"],
             "field": "enunciado_pregunta",
-            "severity": info["severity"], # Usa la severidad del catálogo centralizado
+            "severity": info["severity"],
             "fix_hint": info["fix_hint"]
         })
 
@@ -266,7 +273,7 @@ def soft_validate(item: Dict) -> List[Dict]:
             "code": code,
             "message": info["message"],
             "field": "enunciado_pregunta",
-            "severity": info["severity"], # Usa la severidad del catálogo centralizado
+            "severity": info["severity"],
             "fix_hint": info["fix_hint"]
         })
 
@@ -278,7 +285,7 @@ def soft_validate(item: Dict) -> List[Dict]:
             "code": code,
             "message": info["message"],
             "field": "enunciado_pregunta",
-            "severity": info["severity"], # Usa la severidad del catálogo centralizado
+            "severity": info["severity"],
             "fix_hint": info["fix_hint"]
         })
 
@@ -286,9 +293,9 @@ def soft_validate(item: Dict) -> List[Dict]:
     vague_finding = _check_quantifier_vagueness(stem_text)
     if vague_finding:
         # vague_finding ya contiene code, message y severity
-        info = get_error_info(vague_finding["code"]) # Para obtener el fix_hint si no está ya en vague_finding
+        info = get_error_info(vague_finding["code"])
         findings.append({
-            **vague_finding, # Ya incluye code, message, severity
+            **vague_finding,
             "field": "enunciado_pregunta",
             "fix_hint": info["fix_hint"]
         })
@@ -303,12 +310,14 @@ def soft_validate(item: Dict) -> List[Dict]:
                 "code": code,
                 "message": info["message"],
                 "field": f"opciones[{opt.get('id', i)}].texto",
-                "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                "severity": info["severity"],
                 "fix_hint": info["fix_hint"]
             })
             break
 
     # W104_OPT_LEN_VAR (Homogeneidad de longitud)
+    # Re-introducido y ajustado para que sea una validación de estilo.
+    # Anteriormente se comentó, pero es relevante para la homogeneidad de estilo.
     if options:
         valid_lengths = [_count_words(o.get("texto", "")) for o in options if o.get("texto") and _count_words(o.get("texto", "")) > 0]
         if valid_lengths:
@@ -321,7 +330,7 @@ def soft_validate(item: Dict) -> List[Dict]:
                     "code": code,
                     "message": info["message"],
                     "field": "opciones",
-                    "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                    "severity": info["severity"],
                     "fix_hint": info["fix_hint"]
                 })
 
@@ -338,7 +347,7 @@ def soft_validate(item: Dict) -> List[Dict]:
                     "code": code,
                     "message": info["message"],
                     "field": f"opciones[{correct_opt['id']}].texto",
-                    "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                    "severity": info["severity"],
                     "fix_hint": info["fix_hint"]
                 })
 
@@ -346,9 +355,9 @@ def soft_validate(item: Dict) -> List[Dict]:
     sim_warn = _check_distractor_similarity(options)
     if sim_warn:
         # sim_warn ya contiene code, message y severity
-        info = get_error_info(sim_warn["code"]) # Para obtener el fix_hint si no está ya en sim_warn
+        info = get_error_info(sim_warn["code"])
         findings.append({
-            **sim_warn, # Ya incluye code, message, severity
+            **sim_warn,
             "field": "opciones",
             "fix_hint": info["fix_hint"]
         })
@@ -363,8 +372,13 @@ def soft_validate(item: Dict) -> List[Dict]:
                 "code": code,
                 "message": info["message"],
                 "field": "recurso_visual.descripcion",
-                "severity": info["severity"], # Usa la severidad del catálogo centralizado
+                "severity": info["severity"],
                 "fix_hint": info["fix_hint"]
             })
+
+    # W109_PLAUSIBILITY: No hay una función dedicada o validación explícita para W109 de contenido profundo aquí.
+    # W109_PLAUSIBILITY en soft.py se refiere a "Distractor demasiado absurdo o fácilmente descartable"
+    # Este se mantiene en el error_codes.yaml y en el refinador de estilo.
+    # Se entiende que la "absurdez" a nivel de estilo/redacción es distinta a la "inverosimilitud conceptual" (E202).
 
     return findings

@@ -5,7 +5,6 @@ Reglas fatales
 
 * Devuelve un unico objeto JSON valido, sin texto adicional ni comentarios.
 * No modifiques ningun valor del item.
-* Todos los campos obligatorios deben existir y no ser nulos; de lo contrario reporta E001_SCHEMA con severity "fatal".
 
 Entrada esperada
 Recibirás un objeto JSON con la siguiente estructura:
@@ -16,13 +15,13 @@ metadata_context:
     nivel_cognitivo         string (ej. "recordar", "aplicar", "analizar")
 
 Flujo de validacion
-1. Verifica que exista exactamente una opcion correcta y que respuesta_correcta_id coincida (E012 o E013).
-2. Comprueba calculos, datos, unidades y notacion matemática uniforme (E071, E072, E080).
-3. Revisa que las opciones sean mutuamente excluyentes y que no usen formatos prohibidos como “todas las anteriores” (E106).
-4. Detecta contradicciones internas entre enunciado, opciones y justificaciones (E073).
-5. **Verifica que la justificación de cada opción no contradiga la corrección de la opción misma (E092_JUSTIFICA_INCONGRUENTE).**
+1. Comprueba cálculos, datos, unidades y notacion matemática uniforme (E071, E072).
+2. Revisa que la base (enunciado_pregunta) tenga sentido completo, es decir, que sea un enunciado claro y contextualizado, que plantee adecuadamente el problema o situación evaluativa. Si no es así, puedes reportar E075_DESCONOCIDO_LOGICO.
+3. Detecta contradicciones internas entre enunciado, opciones y justificaciones (E073).
+4. Verifica que la justificación de cada opción (tanto correcta como distractores) no contradiga la corrección de la opción misma (E092_JUSTIFICA_INCONGRUENTE).
+5. Verifica que la justificación de cada distractor (opción no correcta) sea plausible y se alinee con un 'error_común' declarado en la metadata (si 'errores_comunes' no es null). Si la justificación no es clara o el distractor no representa un error conceptual relevante, reporta E076_DISTRACTOR_RATIONALE_MISMATCH.
 6. Confirma que el nivel_cognitivo declarado sea coherente con la tarea intelectual exigida (E074).
-7. Si se halla un error no tipificado, usa E075_DESCONOCIDO_LOGICO.
+7. Si se halla un error lógico nuevo no tipificado, usa E075_DESCONOCIDO_LOGICO.
 8. Registra cada hallazgo en findings con code, message, field, severity y fix_hint.
 9. Si findings queda vacío is_valid = true; de lo contrario, false.
 
@@ -56,24 +55,18 @@ Ejemplo de salida (item invalido)
 ]
 }
 
-Tabla de códigos de error y advertencia lógica
+Tabla de codigos que puedes corregir
+code                          message                                                          severity
+E070_NO_CORRECT_RATIONALE     Falta la justificacion de la opcion correcta.                    error
+E071_CALCULO_INCORRECTO       Calculo incorrecto en la opcion correcta.                        error
+E072_UNIDADES_INCONSISTENTES  Unidades o magnitudes inconsistentes entre enunciado y opciones. error
+E073_CONTRADICCION_INTERNA    Informacion contradictoria o inconsistencia logica interna.      fatal
+E074_NIVEL_COGNITIVO_INAPROPIADO El item no coincide con el nivel cognitivo declarado.          fatal
+E075_DESCONOCIDO_LOGICO       Error logico no clasificado.                                     fatal
+E076_DISTRACTOR_RATIONALE_MISMATCH La justificación del distractor no es clara o no se alinea con un error conceptual plausible. error
+E092_JUSTIFICA_INCONGRUENTE   La justificacion contradice la opcion correspondiente.            error
 
-| code                           | message                                                                      | severity |
-|--------------------------------|------------------------------------------------------------------------------|----------|
-| E070_NO_CORRECT_RATIONALE      | Falta la justificación de la opción correcta.                                | error    |
-| E071_CALCULO_INCORRECTO        | Cálculo incorrecto en la opción correcta.                                    | error    |
-| E072_UNIDADES_INCONSISTENTES   | Unidades o magnitudes inconsistentes entre enunciado y opciones.             | error    |
-| E073_CONTRADICCION_INTERNA     | Información contradictoria o inconsistencia lógica interna.                 | fatal    |
-| E074_NIVEL_COGNITIVO_INAPROPIADO | El ítem no corresponde al nivel cognitivo declarado.                        | fatal    |
-| E075_DESCONOCIDO_LOGICO        | Error lógico no clasificado.                                                 | fatal    |
-| E092_JUSTIFICA_INCONGRUENTE    | La justificación contradice la opción correspondiente.                       | error    |
-| E106_COMPLEX_OPTION_TYPE       | Se usó “todas las anteriores”, “ninguna de las anteriores” o combinaciones equivalentes. | error    |
-| E012_CORRECT_COUNT             | Debe haber exactamente una opción correcta.                                  | fatal    |
-| E013_ID_NO_MATCH               | respuesta_correcta_id no coincide con la opción marcada.                     | fatal    |
-| E080_MATH_FORMAT               | Mezcla de Unicode y LaTeX o formato matemático inconsistente.                | error    |
-| E091_CORRECTA_SIMILAR_STEM     | Opción correcta demasiado similar al enunciado; revela la respuesta.         | error    |
-
-Notas operativas
+Notas
 
 * severity "fatal" indica que el ítem no puede avanzar hasta ser corregido; "error" requiere corrección pero no bloquea procesos posteriores.
-* Usa únicamente los códigos listados; si detectas un problema nuevo aplica E075_DESCONOCIDO_LOGICO.
+* Usa unicamente los codigos listados; si detectas un problema nuevo aplica E075_DESCONOCIDO_LOGICO.

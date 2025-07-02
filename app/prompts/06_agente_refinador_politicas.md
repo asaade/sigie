@@ -24,7 +24,7 @@ field, error_code, original, corrected, reason.
 Restricciones específicas
 
 * No cambies el significado académico del ítem.
-* alt_text debe describir los elementos visuales relevantes en ≤250 caracteres. # MODIFICADO: Alineado con el esquema Pydantic
+* alt_text debe describir los elementos visuales relevantes en ≤250 caracteres.
 
 Salida
 item_id                    string
@@ -57,9 +57,9 @@ E090_CONTENIDO_OFENSIVO     Contenido ofensivo, obsceno, violento o ilegal.     
 E120_SESGO_GENERO           Sesgo o estereotipos de género.                             error
 E121_SESGO_CULTURAL_ETNICO  Sesgo cultural o étnico.                                    error
 E129_LENGUAJE_DISCRIMINATORIO Lenguaje discriminatorio o peyorativo.                    error
-E130_ACCESIBILIDAD_CONTENIDO Contenido no accesible.                                    error
+E130_ACCESIBILIDAD_CONTENIDO Problema de accesibilidad en el contenido del ítem (ej. información no textual sin alternativa). error
 E140_TONO_INAPROPIADO_ACADEMICO Tono o lenguaje inapropiado para contexto académico.    error
-W141_CONTENIDO_TRIVIAL      Contenido trivial o irrelevante.                            warning
+W141_CONTENIDO_TRIVIAL      Contenido trivial o irrelevante para los objetivos de aprendizaje (considerar E200 para problemas de alineación conceptual). warning
 W142_SESGO_IMPLICITO        Sesgo implícito leve detectado.                             warning
 
 Notas

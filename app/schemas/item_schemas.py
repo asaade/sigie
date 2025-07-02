@@ -13,15 +13,13 @@ class TipoRecursoVisual(str, Enum):
     TABLA = 'tabla'
     DIAGRAMA = 'diagrama'
 
-class TipoReactivo(str, Enum):
-    OPCION_MULTIPLE = "opción múltiple"
-    SELECCION_UNICA = "seleccion_unica"
-    SELECCION_MULTIPLE = "seleccion_multiple"
-    ORDENAMIENTO = "ordenamiento"
+class TipoReactivo(str, Enum): # Renombrado de Literal a Enum
+    CUESTIONAMIENTO_DIRECTO = "cuestionamiento_directo"
     COMPLETAMIENTO = 'completamiento'
+    ORDENAMIENTO = "ordenamiento"
     RELACION_ELEMENTOS = "relacion_elementos"
 
-class NivelCognitivoEnum(str, Enum): # Renombrado de Literal a Enum
+class NivelCognitivoEnum(str, Enum):
     RECORDAR = "recordar"
     COMPRENDER = "comprender"
     APLICAR = "aplicar"
@@ -29,7 +27,7 @@ class NivelCognitivoEnum(str, Enum): # Renombrado de Literal a Enum
     EVALUAR = "evaluar"
     CREAR = "crear"
 
-class DificultadPrevistaEnum(str, Enum): # Renombrado de Literal a Enum
+class DificultadPrevistaEnum(str, Enum):
     FACIL = "facil"
     MEDIA = "media"
     DIFICIL = "dificil"
@@ -37,51 +35,52 @@ class DificultadPrevistaEnum(str, Enum): # Renombrado de Literal a Enum
 # --- Esquemas para componentes del ítem ---
 class RecursoVisualSchema(BaseModel):
     tipo: TipoRecursoVisual
-    descripcion: str = Field(..., min_length=1, max_length=600) # Añadido min_length=1 para asegurar contenido
-    alt_text: str = Field(..., min_length=1, max_length=250) # Añadido min_length=1 para asegurar contenido
+    descripcion: str = Field(..., min_length=1, max_length=600)
+    alt_text: str = Field(..., min_length=1, max_length=250)
     referencia: HttpUrl
     pie_de_imagen: Optional[str] = Field(None, max_length=300)
 
-    model_config = ConfigDict(frozen=True) # Uso de model_config en lugar de class Config
+    model_config = ConfigDict(frozen=True)
 
 class MetadataSchema(BaseModel):
-    idioma_item: str = Field(..., max_length=2) # Mantener str para flexibilidad de idiomas
     area: str
     asignatura: str
     tema: str
-    contexto_regional: Optional[str] = None
-    nivel_destinatario: str # Mantener str si los niveles pueden ser arbitrarios
-    nivel_cognitivo: NivelCognitivoEnum # Usar el Enum
-    dificultad_prevista: DificultadPrevistaEnum # Usar el Enum
-    referencia_curricular: Optional[str] = None
-    habilidad_evaluable: Optional[str] = None
-    fecha_creacion: Optional[datetime] = None # Campo gestionado por el sistema
+    contexto_regional: Optional[str] = Field(None, max_length=100) # Añadido max_length
+    nivel_destinatario: str
+    nivel_cognitivo: NivelCognitivoEnum
+    dificultad_prevista: DificultadPrevistaEnum
+    errores_comunes: Optional[List[str]] = Field(None, description="Lista de errores conceptuales o razonamientos comunes que llevan a elegir los distractores.") # AÑADIDO ESTE CAMPO
+    # parametro_irt_b: Optional[float] = None # ELIMINADO: Ya no se considera en el esquema
+    referencia_curricular: Optional[str] = Field(None, max_length=500) # Añadido max_length
+    habilidad_evaluable: Optional[str] = Field(None, max_length=300) # Añadido max_length
+    fecha_creacion: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class OpcionSchema(BaseModel):
     id: Literal["a", "b", "c", "d"]
-    texto: str = Field(..., min_length=1, max_length=140) # Ajustado max_length a 140
+    texto: str = Field(..., min_length=1, max_length=140)
     es_correcta: bool = False
-    justificacion: str = Field(..., min_length=1, max_length=300)
+    justificacion: str = Field(..., min_length=1, max_length=700)
 
     model_config = ConfigDict(from_attributes=True)
 
 # --- Esquema principal para el payload de un ítem ---
 class ItemPayloadSchema(BaseModel):
-    item_id: UUID # Usar UUID directamente si ya está importado
+    item_id: UUID
     testlet_id: Optional[UUID] = None
     estimulo_compartido: Optional[str] = Field(None, max_length=1500)
     metadata: MetadataSchema
     tipo_reactivo: TipoReactivo
     fragmento_contexto: Optional[str] = Field(None, max_length=500)
     recurso_visual: Optional[RecursoVisualSchema] = None
-    enunciado_pregunta: str = Field(..., min_length=1, max_length=250) # Ajustado max_length a 250
-    opciones: List[OpcionSchema] = Field(..., min_length=3, max_length=4)
+    enunciado_pregunta: str = Field(..., min_length=1, max_length=250)
+    opciones: List[OpcionSchema] = Field(..., min_length=3, max_length=4) # Se mantiene la flexibilidad de 3 o 4 opciones
     respuesta_correcta_id: Literal["a", "b", "c", "d"]
 
     @validator('testlet_id', 'estimulo_compartido', pre=True, always=True)
-    def ensure_testlet_fields_consistency(cls, v: Any): # Usar Any para la entrada pre=True
+    def ensure_testlet_fields_consistency(cls, v: Any):
         if isinstance(v, str) and v.strip() == "":
             return None
         return v
@@ -157,22 +156,22 @@ class FinalEvaluationSchema(BaseModel):
 # --- Esquema para la solicitud de generación de ítems (input para el pipeline) ---
 class UserGenerateParams(BaseModel):
     n_items: int = Field(1, ge=1, le=5)
-    idioma_item: str = "es"
     area: str
     asignatura: str
     tema: str
     nivel_destinatario: str
-    nivel_cognitivo: NivelCognitivoEnum # Usar el Enum
-    dificultad_prevista: DificultadPrevistaEnum # Usar el Enum
+    nivel_cognitivo: NivelCognitivoEnum
+    dificultad_prevista: DificultadPrevistaEnum
     tipo_generacion: Literal["item", "testlet"] = "item"
-    tipo_reactivo: TipoReactivo = Field(TipoReactivo.OPCION_MULTIPLE)
-    habilidad: Optional[str] = Field(None, max_length=300) # Añadido max_length
-    referencia_curricular: Optional[str] = Field(None, max_length=500) # Añadido max_length
+    # CAMBIO AQUÍ:
+    tipo_reactivo: TipoReactivo = Field(TipoReactivo.CUESTIONAMIENTO_DIRECTO) # Se cambió el valor por defecto a un miembro existente.
+    habilidad: Optional[str] = Field(None, max_length=300)
+    referencia_curricular: Optional[str] = Field(None, max_length=500)
     recurso_visual: Optional[Dict[str, Any]] = Field(None)
-    estimulo_compartido: Optional[str] = Field(None, max_length=1500) # Añadido max_length
+    estimulo_compartido: Optional[str] = Field(None, max_length=1500)
     testlet_id: Optional[UUID] = Field(None)
     especificaciones_por_item: Optional[List[Dict[str, Any]]] = Field(None)
-    contexto_regional: Optional[str] = Field(None, max_length=100) # Añadido max_length
+    contexto_regional: Optional[str] = Field(None, max_length=100)
     fragmento_contexto: Optional[str] = Field(None, max_length=500)
 
-    model_config = ConfigDict(extra="forbid") # Mantenido para validación estricta
+    model_config = ConfigDict(extra="forbid")

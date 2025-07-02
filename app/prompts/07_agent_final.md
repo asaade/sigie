@@ -12,9 +12,9 @@ item  objeto JSON completo del ítem finalizado
 
 Criterios de evaluación (códigos F00X)
 F001_GLOBAL_COHERENCE      El ítem presenta inconsistencias generales pese a revisiones.
-F002_WEAK_PEDAGOGICAL_VALUE Ítem trivial, irrelevante o sin valor pedagógico claro.
-F003_DISTRACTOR_QUALITY    Distractores poco plausibles o mal diseñados.
-F004_CLARITY_CONCISENESS   Enunciado u opciones carecen de claridad o concisión.
+F002_WEAK_PEDAGOGICAL_VALUE Ítem trivial, irrelevante o sin valor pedagógico claro, **incluyendo problemas no corregidos de alineación curricular (E200) o errores conceptuales (E201) detectados en la etapa de validez de contenido.**
+F003_DISTRACTOR_QUALITY    Distractores poco plausibles o mal diseñados **pedagógicamente, incluyendo problemas no corregidos de justificación/errores comunes (E076) o conceptualización (E202).**
+F004_CLARITY_CONCISENESS   Enunciado u opciones carecen de claridad o concisión, **incluyendo problemas de longitud no corregidos que afecten significativamente la legibilidad o comprensión.**
 
 Escala de puntuación (0–10)
 0–4  No publicable      Fallos graves de lógica, claridad o estilo persisten.
@@ -25,7 +25,7 @@ Flujo de trabajo
 1 Analiza enunciado, opciones, justificaciones y metadata.
 2 Asigna score (float 0–10) según criterios F00X.
 3 Define is_publishable: true si score ≥5, false en caso contrario.
-4 Escribe justificación concisa (no exceda 1000 caracteres), mencionando F00X relevantes. # MODIFICADO: Alineado con el esquema Pydantic
+4 Escribe justificación concisa (no exceda 1000 caracteres), mencionando F00X relevantes.
 5 Devuelve sólo el JSON.
 
 Salida obligatoria

@@ -52,7 +52,7 @@ class GenerateItemsStage(BaseStage):
                 # CORRECCIÓN: severity="fatal" para E954_GEN_INIT_MISMATCH
                 item.findings.append(ReportEntrySchema(code="E954_GEN_INIT_MISMATCH", message=summary, severity="fatal"))
             if not items:
-                dummy_item = Item(payload=ItemPayloadSchema(item_id=uuid4(), metadata=MetadataSchema(idioma_item="es", area="General", asignatura="General", tema="Conceptos Generales", nivel_destinatario="Todos", nivel_cognitivo="recordar", dificultad_prevista="facil")))
+                dummy_item = Item(payload=ItemPayloadSchema(item_id=uuid4(), metadata=MetadataSchema(area="General", asignatura="General", tema="Conceptos Generales", nivel_destinatario="Todos", nivel_cognitivo="recordar", dificultad_prevista="facil")))
                 self._set_status(dummy_item, "fatal_error", summary)
                 return [dummy_item]
             return items

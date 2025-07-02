@@ -4,7 +4,7 @@ from typing import List
 
 from app.schemas.item_schemas import ReportEntrySchema
 from app.schemas.models import Item
-from app.validators.soft import soft_validate
+from app.validators.soft import soft_validate # Importa la función de validación
 from app.pipelines.abstractions import BaseStage
 from app.pipelines.registry import register
 
@@ -21,8 +21,10 @@ class ValidateSoftStage(BaseStage):
         updated_items = []
 
         for item in items:
-            item_dict_payload = item.payload.dict()
-            soft_findings_raw = soft_validate(item_dict_payload) # Esto devuelve una lista de diccionarios con severidad
+            # Asegurarse de que el payload sea un dict compatible con soft_validate
+            # Pydantic v2 .model_dump(mode='json') es preferible a .dict() para asegurar la serialización correcta
+            item_dict_payload = item.payload.model_dump(mode='json') # MODIFICADO: Usar model_dump
+            soft_findings_raw = soft_validate(item_dict_payload) # Invoca la lógica de soft.py
 
             # Filtrar solo los findings que no existen ya para evitar duplicados
             existing_finding_codes = {f.code for f in item.findings}
@@ -35,8 +37,8 @@ class ValidateSoftStage(BaseStage):
                             code=finding.get("code", "UNKNOWN_SOFT_FINDING"),
                             message=finding.get("message", "Advertencia de estilo no especificada."),
                             field=finding.get("field"),
-                            severity=finding["severity"], # MODIFICADO: Ahora toma la severidad directamente del finding
-                            fix_hint=finding.get("fix_hint", None)
+                            severity=finding["severity"], # Correcto: Toma la severidad del finding que viene de get_centralized_error_info en soft.py
+                            fix_hint=finding.get("fix_hint", None) # Correcto: Toma el fix_hint del finding que viene de get_centralized_error_info
                         )
                     )
             item.findings = current_findings

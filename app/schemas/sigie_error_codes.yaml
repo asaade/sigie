@@ -57,7 +57,7 @@ ESTILO:
 
 * code: W109_PLAUSIBILITY
   message: "Distractor demasiado absurdo o fácilmente descartable."
-  fix_hint: "Ajustar el distractor para representar un error conceptual plausible."
+  fix_hint: "Ajustar el distractor para representar un error conceptual plausible (considerar E202 para problemas de fondo)."
   severity: warning
 
 * code: W112_DISTRACTOR_SIMILAR
@@ -90,7 +90,7 @@ ESTILO:
   fix_hint: "Unificar el idioma del enunciado y las opciones."
   severity: warning
 
-* code: W199_UNCATEGORIZED_STYLE # Nuevo código para problemas de estilo no clasificados
+* code: W199_UNCATEGORIZED_STYLE
   message: "Problema de estilo no clasificado."
   fix_hint: "Revisar manualmente el estilo del ítem."
   severity: warning
@@ -127,6 +127,11 @@ LOGICO:
   fix_hint: "Revisar manualmente la lógica del ítem."
   severity: fatal
 
+* code: E076_DISTRACTOR_RATIONALE_MISMATCH # NUEVO CÓDIGO
+  message: "La justificación del distractor no es clara o no se alinea con un error conceptual plausible."
+  fix_hint: "Reformular la justificación del distractor para que sea clara y refleje un error conceptual común o plausible."
+  severity: error
+
 * code: E092_JUSTIFICA_INCONGRUENTE
   message: "La justificación contradice la opción correspondiente."
   fix_hint: "Alinear la justificación con el contenido de la opción."
@@ -140,8 +145,8 @@ ESTRUCTURAL:
   severity: fatal
 
 * code: E010_NUM_OPTIONS
-  message: "El número de opciones debe ser 3 o 4."
-  fix_hint: "Ajustar la cantidad de opciones."
+  message: "El número de opciones debe ser entre 3 y 4." # Mensaje actualizado
+  fix_hint: "Ajustar la cantidad de opciones a 3 o 4." # Fix hint actualizado
   severity: fatal
 
 * code: E011_DUP_ID
@@ -177,44 +182,66 @@ ESTRUCTURAL:
 POLITICAS:
 
 * code: E090_CONTENIDO_OFENSIVO
-  message: "Contenido ofensivo, obsceno, violento o ilegal."
+  message: "Contenido ofensivo, obsceno, violento, o que promueve actividades ilegales."
   fix_hint: "Reescribir para eliminar contenido inapropiado."
   severity: fatal
 
 * code: E120_SESGO_GENERO
-  message: "Sesgo o estereotipos de género."
-  fix_hint: "Usar lenguaje neutral o ejemplos equilibrados."
+  message: "El ítem (texto, nombres, imágenes) presenta sesgo o estereotipos de género."
+  fix_hint: "Usar lenguaje neutral e inclusivo o reemplazar recursos visuales/ejemplos con sesgo de género."
   severity: error
 
 * code: E121_SESGO_CULTURAL_ETNICO
-  message: "Sesgo cultural o étnico."
+  message: "El ítem (texto, nombres, imágenes) presenta sesgo o estereotipos culturales, étnicos o referencias excluyentes."
   fix_hint: "Usar referencias culturalmente sensibles."
   severity: error
 
 * code: E129_LENGUAJE_DISCRIMINATORIO
-  message: "Lenguaje discriminatorio o peyorativo."
+  message: "El ítem contiene lenguaje explícitamente discriminatorio, excluyente o peyorativo hacia algún grupo."
   fix_hint: "Sustituir por formulaciones inclusivas."
   severity: error
 
 * code: E130_ACCESIBILIDAD_CONTENIDO
-  message: "Contenido no accesible."
+  message: "Problema de accesibilidad en el contenido del ítem (ej. información no textual sin alternativa)."
   fix_hint: "Proveer alternativas textuales o formatos accesibles."
   severity: error
 
 * code: E140_TONO_INAPROPIADO_ACADEMICO
-  message: "Tono o lenguaje inapropiado para contexto académico."
+  message: "Tono o lenguaje inapropiado para un contexto académico o profesional."
   fix_hint: "Ajustar a registro formal."
   severity: error
 
 * code: W141_CONTENIDO_TRIVIAL
-  message: "Contenido trivial o irrelevante."
-  fix_hint: "Alinear con objetivos de aprendizaje."
+  message: "Contenido trivial o irrelevante para los objetivos de aprendizaje (considerar E200 para problemas de alineación conceptual)."
+  fix_hint: "Alinear con objetivos de aprendizaje o eliminar contenido trivial."
   severity: warning
 
 * code: W142_SESGO_IMPLICITO
   message: "Sesgo implícito leve detectado."
   fix_hint: "Revisar ejemplos y lenguaje para neutralidad."
   severity: warning
+
+CONTENIDO: # NUEVA CATEGORÍA AÑADIDA
+
+* code: E200_CONTENT_MISALIGNMENT
+  message: "El contenido del ítem no se alinea con la metadata (tema, nivel, habilidad, etc.)."
+  fix_hint: "Ajustar el contenido del ítem para que refleje los parámetros de la metadata o viceversa."
+  severity: error
+
+* code: E201_CONCEPTUAL_ERROR
+  message: "El ítem contiene un error conceptual o factual en su contenido."
+  fix_hint: "Corregir el error conceptual o factual en el enunciado, opciones o justificaciones."
+  severity: fatal
+
+* code: E202_DISTRACTOR_CONCEPTUAL_FLAW
+  message: "Un distractor es conceptualmente inverosímil o no representa un error pedagógicamente relevante."
+  fix_hint: "Reformular el distractor para que sea plausible y represente un error conceptual común."
+  severity: error
+
+* code: E203_MULTIPLE_CONSTRUCTS
+  message: "El ítem evalúa múltiples conceptos o habilidades principales."
+  fix_hint: "Simplificar el ítem para que evalúe un único constructo o habilidad."
+  severity: error
 
 LLM_SISTEMA:
 
