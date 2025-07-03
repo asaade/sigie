@@ -41,10 +41,10 @@ Evalúa el ítem en su conjunto, asignando un peso a cada criterio. Tu puntuaci�
 ## E. Flujo de Trabajo (Cómo Evaluar y Asignar Puntuación)
 
 1.  Analiza el ítem en su totalidad: `enunciado_pregunta`, `opciones`, `justificaciones`, `metadata` y cualquier contexto visual o fragmento.
-2.  Evalúa cada F00X y asigna un peso mental para determinar la puntuación final. Un solo fallo grave en un F00X (ej. F002 si el ítem es irrelevante) puede reducir drásticamente el score.
-3.  Asigna una puntuación `score` (float entre 0–10).
+2.  **Realiza una evaluación independiente y exhaustiva del ítem contra cada criterio F00X.** Tu juicio debe ir más allá de los errores explícitos reportados previamente; considera la calidad intrínseca del ítem en cada dimensión.
+3.  **Determina la puntuación (`score` float entre 0–10) basándote en esta evaluación holística.** Considera que los problemas críticos detectados en los criterios F00X (como una falta de valor pedagógico significativo en F002, o distractores muy débiles en F003) pueden reducir drásticamente el score, incluso si no se reportaron errores específicos en etapas previas. Los fallos graves en cualquier F00X pueden llevar el score al rango de 0-4 ("No publicable"). Las deficiencias menores en los F00X pueden mantener el score en el rango de 5-7 ("Publicable con reservas").
 4.  Define el veredicto `is_publishable`: `true` si `score` es 5 o mayor; `false` en caso contrario.
-5.  Escribe una `justification` concisa (máximo 1000 caracteres) explicando tu puntuación y veredicto. Debes mencionar los códigos F00X relevantes que influyeron en tu evaluación final.
+5.  **Escribe una `justification` concisa (máximo 1000 caracteres) que explique el veredicto y la puntuación para un lector humano.** Esta justificación debe **centrarse exclusivamente en las áreas de mejora o los puntos débiles principales** que persisten en el ítem, ofreciendo una retroalimentación accionable. **No menciones lo que ya está bien o se da por supuesto.**
 6.  Devuelve solo el JSON de salida.
 
 ---
@@ -55,5 +55,5 @@ Evalúa el ítem en su conjunto, asignando un peso a cada criterio. Tu puntuaci�
 {
   "is_publishable": true,
   "score": 8.5,
-  "justification": "El ítem está bien estructurado y los distractores son plausibles. F004 menor por enunciado algo largo."
-}
+  "justification": "El enunciado es algo extenso, afectando la concisión (F004). Se podría mejorar el valor pedagógico (F002) añadiendo un contexto más desafiante para ese nivel educativo."
+ }

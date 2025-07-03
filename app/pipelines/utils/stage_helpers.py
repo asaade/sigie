@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from datetime import datetime
 
 from app.schemas.models import Item
-from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema, RecursoVisualSchema
+from app.schemas.item_schemas import AuditEntrySchema, ReportEntrySchema, CorrectionEntrySchema, ItemPayloadSchema, UserGenerateParams, MetadataSchema, OpcionSchema
 
 
 logger = logging.getLogger(__name__)
@@ -131,59 +131,49 @@ def clean_specific_errors(item: Item, fixed_codes: set) -> None:
 
 def initialize_items_for_pipeline(user_params: UserGenerateParams) -> List[Item]:
     """
-    Inicializa una lista de objetos Item con payloads dummy pero válidos
-    basándose en los user_params.
+    Inicializa una lista de objetos Item basados en los parámetros de la solicitud del usuario.
     """
     items: List[Item] = []
+    n_items = user_params.n_items
 
-    try:
-        validated_user_params = user_params
-        n_items = validated_user_params.n_items
-    except Exception as e:
-        logger.error(f"Error validating UserGenerateParams during pipeline initialization: {e}", exc_info=True)
-        return []
+    # Asegurarse de que item_ids_a_usar sea una lista, incluso si no se proporciona explícitamente para cada item
+    # Si item_ids_a_usar viene en user_params, usarlo; de lo contrario, generar IDs temporales
+    item_ids_to_use = user_params.item_ids_a_usar if user_params.item_ids_a_usar else [str(uuid4()) for _ in range(n_items)]
 
-    for _ in range(n_items):
-        item_metadata = MetadataSchema(
-            area=validated_user_params.area,
-            asignatura=validated_user_params.asignatura,
-            tema=validated_user_params.tema,
-            contexto_regional=validated_user_params.contexto_regional,
-            nivel_destinatario=validated_user_params.nivel_destinatario,
-            nivel_cognitivo=validated_user_params.nivel_cognitivo,
-            dificultad_prevista=validated_user_params.dificultad_prevista,
-            referencia_curricular=validated_user_params.referencia_curricular,
-            habilidad_evaluable=validated_user_params.habilidad,
-        )
+    for i in range(n_items):
+        current_item_id = item_ids_to_use[i] if i < len(item_ids_to_use) else str(uuid4())
+        current_temp_id = str(uuid4()) # Generar un temp_id único para cada Item
 
-        recurso_visual_obj = None
-        if validated_user_params.recurso_visual:
-            try:
-                if isinstance(validated_user_params.recurso_visual, dict):
-                    recurso_visual_obj = RecursoVisualSchema.model_validate(validated_user_params.recurso_visual)
-                else:
-                    recurso_visual_obj = validated_user_params.recurso_visual
-            except Exception as e:
-                logger.warning(f"Error validating recurso_visual from user_params during item initialization: {e}. Setting to None.")
-
+        # Crear un payload dummy inicial para satisfacer el esquema Pydantic si es necesario
+        # Usar un payload válido pero que será reemplazado por el generador
         dummy_payload = ItemPayloadSchema(
-            item_id=uuid4(),
-            metadata=item_metadata,
+            item_id=UUID(current_item_id), # Usar el item_id generado o provisto
+            metadata=MetadataSchema(
+                area=user_params.area,
+                asignatura=user_params.asignatura,
+                tema=user_params.tema,
+                nivel_destinatario=user_params.nivel_destinatario,
+                nivel_cognitivo=user_params.nivel_cognitivo,
+                dificultad_prevista=user_params.dificultad_prevista,
+                errores_comunes=["dummy error 1", "dummy error 2"], # Requiere 2 errores comunes
+                fecha_creacion=datetime.now().isoformat().split('T')[0] # Fecha actual en YYYY-MM-DD
+            ),
+            tipo_reactivo=user_params.tipo_reactivo,
             enunciado_pregunta="[DUMMY] Enunciado inicial. Será reemplazado por el LLM.",
             opciones=[
                 OpcionSchema(id="a", texto="[DUMMY] Opción A", es_correcta=True, justificacion="[DUMMY] Justificación A"),
                 OpcionSchema(id="b", texto="[DUMMY] Opción B", es_correcta=False, justificacion="[DUMMY] Justificación B"),
-                OpcionSchema(id="c", texto="[DUMMY] Opción C", es_correcta=False, justificacion="[DUMMY] Justificación C"),
+                OpcionSchema(id="c", texto="[DUMMY] Opción C", es_correcta=False, justificacion="[DUMMY] Justificación C")
             ],
-            respuesta_correcta_id="a",
-            tipo_reactivo=validated_user_params.tipo_reactivo,
-            fragmento_contexto=validated_user_params.fragmento_contexto,
-            recurso_visual=recurso_visual_obj,
-            estimulo_compartido=validated_user_params.estimulo_compartido,
-            testlet_id=validated_user_params.testlet_id,
+            respuesta_correcta_id="a"
         )
 
-        items.append(Item(payload=dummy_payload))
+        # Al construir el objeto Item, pasa el temp_id y item_id
+        items.append(Item(
+            temp_id=UUID(current_temp_id), # Asegurarse de pasar temp_id aquí
+            item_id=UUID(current_item_id), # Asegurarse de pasar item_id aquí
+            payload=dummy_payload # Pasar el payload dummy inicial
+        ))
 
     logger.info(f"Initialized {len(items)} items for pipeline execution based on user parameters.")
     return items

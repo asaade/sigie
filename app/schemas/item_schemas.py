@@ -156,6 +156,9 @@ class FinalEvaluationSchema(BaseModel):
 # --- Esquema para la solicitud de generación de ítems (input para el pipeline) ---
 class UserGenerateParams(BaseModel):
     n_items: int = Field(1, ge=1, le=5)
+    # CAMBIO AQUÍ: Añadir item_ids_a_usar a los parámetros de entrada del usuario
+    item_ids_a_usar: Optional[List[str]] = None # Puede ser List[UUID] si se prefiere tipado estricto al recibir UUIDs en str
+
     area: str
     asignatura: str
     tema: str
@@ -163,7 +166,6 @@ class UserGenerateParams(BaseModel):
     nivel_cognitivo: NivelCognitivoEnum
     dificultad_prevista: DificultadPrevistaEnum
     tipo_generacion: Literal["item", "testlet"] = "item"
-    # CAMBIO AQUÍ:
     tipo_reactivo: TipoReactivo = Field(TipoReactivo.CUESTIONAMIENTO_DIRECTO) # Se cambió el valor por defecto a un miembro existente.
     habilidad: Optional[str] = Field(None, max_length=300)
     referencia_curricular: Optional[str] = Field(None, max_length=500)

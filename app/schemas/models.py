@@ -1,63 +1,30 @@
-# app/schemas/models.py
+# app/schemas/models.py (Este archivo contendría el modelo Pydantic 'Item' que se usa para las respuestas de la API)
 
-# Eliminado from dataclasses import dataclass, field # Correct, as it's BaseModel
-from uuid import UUID, uuid4
-from typing import List, Optional, Dict, Any
-import json # Necesario para json.loads en parse_json
+from pydantic import BaseModel, ConfigDict # Importar ConfigDict para Pydantic v2
+from typing import List, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field # Importamos Field
-# FinalEvaluationSchema no es parte de este archivo, eliminar si no existe
-from app.schemas.item_schemas import ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema, FinalEvaluationSchema # CRÍTICO: FinalEvaluationSchema debe importarse si se usa
+from app.schemas.item_schemas import ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema, FinalEvaluationSchema
 
-# @dataclass(slots=True) # Correct, ELIMINADO EL DECORADOR DATACLASS
-class Item(BaseModel): # Mantiene herencia de BaseModel
-    """Ítem en memoria mientras recorre el pipeline."""
+class Item(BaseModel):
+    """
+    Modelo Pydantic para el objeto Ítem que fluye a través del pipeline
+    y es utilizado para las respuestas de la API.
+    """
+    temp_id: UUID
+    item_id: Optional[UUID] = None
+    status: str = "pending"
+    payload: Optional[ItemPayloadSchema] = None
+    findings: List[ReportEntrySchema] = []
+    audits: List[AuditEntrySchema] = []
+    prompt_v: Optional[str] = None
+    token_usage: Optional[int] = None
+    final_evaluation: Optional[FinalEvaluationSchema] = None
 
-    # Metadatos de tracking (todos con valores por defecto o Optional para no ser posicionales obligatorios)
-    # Estos campos van PRIMERO en BaseModel si no son el campo principal del constructor.
-    temp_id: UUID = Field(default_factory=uuid4)
-    item_id: Optional[UUID] = Field(None)
-    status: str = Field("pending")
-
-    findings: List[ReportEntrySchema] = Field(default_factory=list)
-    audits: List[AuditEntrySchema] = Field(default_factory=list)
-    prompt_v: Optional[str] = Field(None)
-    token_usage: Optional[int] = Field(None)
-    # final_evaluation: Optional[Any] = Field(None) # Si FinalEvaluationSchema existe, usarlo como tipo
-    final_evaluation: Optional[FinalEvaluationSchema] = Field(None) # CRÍTICO: Usar el tipo FinalEvaluationSchema si existe
-
-    # Payload es un campo obligatorio en el constructor y debe ser el último si no tiene default
-    payload: ItemPayloadSchema # Este debe ser el último campo obligatorio sin un Field(default=...)
-
-
-    @classmethod
-    def from_payload(cls, payload: ItemPayloadSchema) -> "Item":
-        # Ahora el constructor de Item espera 'payload' como argumento posicional o keyword
-        return cls(payload=payload)
-
-    @classmethod
-    def parse_json(cls, raw_json: str) -> "Item":
-        # Este método asume que el JSON de entrada es para un Item completo,
-        # incluyendo el payload y los metadatos de tracking.
-        # Si raw_json siempre contuviera un dict que mapea a Item completo:
-        data = json.loads(raw_json)
-        # CRÍTICO: Este **data podría fallar si raw_json no tiene todos los campos del constructor de Item.
-        # Es más seguro usar cls.model_validate(data) si Item es un BaseModel.
-        # Sin embargo, el flujo actual NO usa este método parse_json.
-        return cls(**data) # Revisa si esto es realmente el uso deseado de parse_json
-
-
-    def to_orm(self) -> Dict[str, Any]:
-        """Convierte el objeto Item a un diccionario compatible con el ORM para persistir."""
-        return {
-            "id": self.item_id,
-            "temp_id": str(self.temp_id), # UUID a string para DB
-            "status": self.status,
-            "payload": self.payload.model_dump(mode="json"), # Serializa el payload a JSON string
-            "findings": [f.model_dump() for f in self.findings], # Guardar findings unificados
-            "audit_trail": [audit.model_dump() for audit in self.audits], # Mapear audits a audit_trail para la DB
-            "prompt_v": self.prompt_v,
-            "token_usage": self.token_usage,
-            "final_evaluation": self.final_evaluation.model_dump() if self.final_evaluation else None, # Asegurar serialización
-            # created_at es gestionado por la DB
-        }
+    # Configuración de Pydantic para asegurar la inclusión de todos los campos en la serialización JSON
+    model_config = ConfigDict(
+        exclude_none=False,
+        exclude_unset=False,
+        populate_by_name=True,
+        from_attributes=True
+    )
