@@ -4,91 +4,104 @@
 
 stages:
   # 1. Etapa de creación inicial de ítems
-  - name: generate_items # Nombre de la clase GenerateItemsStage
+  - name: generate_items
     params:
       prompt: "01_agent_dominio.md"
-      provider: gemini # Ejemplo: Usar OpenAI para la generación
+      provider: gemini
       model: "gemini-2.0-flash"
       temperature: 0.7
       max_tokens: 3000
 
   # 2. Validación programática de reglas duras
-  - name: validate_hard # Nombre de la clase ValidateHardStage
+  - name: validate_hard
     # Esta etapa no usa LLM directamente, su lógica es programática.
 
   # 3. Ciclo de validación y refinamiento lógico
-  - name: validate_logic # Nombre de la clase ValidateLogicStage (Validador)
+  - name: validate_logic
     params:
       prompt: "02_agent_razonamiento.md"
-      provider: gemini # Ejemplo: Usar Gemini para validación lógica
-      model: gemini-2.0-flash
-      temperature: 0.3 # Baja temperatura para precisión en validación
-      max_tokens: 1500
-
-  - name: refine_item_logic # Nombre de la clase RefineLogicStage (Refinador)
-    params:
-      prompt: "03_agente_refinador_razonamiento.md"
-      provider: gemini # Mismo proveedor que el validador
-      model: gemini-2.0-flash
-      temperature: 0.5 # Poca creatividad para corrección
-      max_tokens: 2500
-      # Esta etapa actuará sobre los ítems cuyo estado sea 'validate_logic.fail'
-      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior (ahora es un patrón)
-
-  # XX. Ciclo de validación de contenido
-  - name: validate_content_validity # Nombre de la clase
-    params:
-      prompt: "XX_agent_content_validity.md"
-      provider: gemini # Ejemplo: Usar Gemini para validación lógica
-      model: gemini-2.0-flash
-      temperature: 0.3 # Baja temperatura para precisión en validación
-      max_tokens: 2500
-
-  # 4. Ciclo de validación y refinamiento de políticas
-  - name: validate_policy # Nombre de la clase ValidatePolicyStage (Validador)
-    params:
-      prompt: "05_agent_politicas.md"
-      provider: gemini # Ejemplo: Usar OpenAI para validación de políticas
+      provider: gemini
       model: gemini-2.0-flash
       temperature: 0.3
       max_tokens: 1500
 
-  - name: refine_item_policy # Nombre de la clase RefinePolicyStage (Refinador)
+  - name: refine_item_logic
     params:
-      prompt: "06_agente_refinador_politicas.md"
-      provider: gemini # Mismo proveedor que el validador
+      prompt: "03_agente_refinador_razonamiento.md"
+      provider: gemini
       model: gemini-2.0-flash
       temperature: 0.5
       max_tokens: 2500
-      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de la etapa anterior
+      listen_to_status_pattern: ".fail"
+      next_stage_on_success: validate_logic # Bucle de refinamiento: vuelve a la validación lógica
+
+  # XX. Ciclo de validación y REFINAMIENTO de contenido (PEDAGÓGICO/PSICOMÉTRICO)
+  - name: validate_content_validity
+    params:
+      prompt: "XX_agent_content_validity.md" # Este es el prompt del validador de contenido que proporcionaste
+      provider: gemini
+      model: gemini-2.0-flash
+      temperature: 0.3
+      max_tokens: 2500
+
+  - name: refine_item_content # <--- NUEVA ETAPA: Refinador de Contenido
+    params:
+      prompt: "03B_agente_refinador_contenido.md" # <--- EL NUEVO PROMPT DEFINIDO ARRIBA
+      provider: gemini
+      model: gemini-2.0-flash
+      temperature: 0.5 # Poca creatividad para corrección, más precisión
+      max_tokens: 2500
+      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de validate_content_validity
+      next_stage_on_success: validate_content_validity # <--- IMPORTANTE: Bucle de refinamiento
+      max_retries: 3 # <--- Opcional pero recomendado para evitar bucles infinitos (puedes ajustar el número)
+
+  # 4. Ciclo de validación y refinamiento de políticas
+  - name: validate_policy
+    params:
+      prompt: "05_agent_politicas.md"
+      provider: gemini
+      model: gemini-2.0-flash
+      temperature: 0.3
+      max_tokens: 1500
+
+  - name: refine_item_policy
+    params:
+      prompt: "06_agente_refinador_politicas.md"
+      provider: gemini
+      model: gemini-2.0-flash
+      temperature: 0.5
+      max_tokens: 2500
+      listen_to_status_pattern: ".fail"
+      next_stage_on_success: validate_policy # Bucle de refinamiento
 
   # 5. Validación programática de reglas suaves (advertencias)
-  - name: validate_soft # Nombre de la clase ValidateSoftStage
+  - name: validate_soft
     # Esta etapa no usa LLM directamente, su lógica es programática.
     # Solo emite warnings, no cambia el estado a .fail si no hay errores previos.
 
   # 6. Etapa de corrección de estilo directa
-  - name: refine_item_style # Nombre de la clase RefineStyleStage
+  - name: refine_item_style
     params:
       prompt: "04_agente_refinador_estilo.md"
-      provider: gemini # Ejemplo: Usar OpenAI para corrección de estilo
-      model: gemini-2.0-flash
-      temperature: 0.6 # Moderada creatividad para estilo
+      provider: gemini
+      model: "gemini-2.0-flash" # Asegúrate de que el modelo sea compatible con el proveedor
+      temperature: 0.6
       max_tokens: 2000
       # Esta etapa actuará sobre ítems que hayan pasado las etapas anteriores
       # (no estén en fatal_error o fail/error, y contengan warnings de validate_soft para actuar sobre ellos).
       # Al no tener un listen_to_status_pattern específico, procesará todos
       # los ítems que no estén en estado fatal/error.
+      # No hay bucle aquí, ya que el estilo es una mejora final, no una validación crítica.
 
   # 7. Etapa de evaluación final por un LLM
-  - name: finalize_item # Nombre de la clase FinalizeItemStage
+  - name: finalize_item
     params:
       prompt: "07_agent_final.md"
-      provider: openrouter # Ejemplo: Usar OpenAI para la generación
+      provider: openrouter # Asumo que sigues usando OpenRouter para esta etapa
       model: "deepseek/deepseek-r1:free"
-      temperature: 0.2 # Baja temperatura para juicio imparcial
+      temperature: 0.2
       max_tokens: 2000
 
   # 8. Persistencia final en la base de datos
-  - name: persist # Nombre de la clase PersistStage
+  - name: persist
     # No usa LLM, su lógica es programática.

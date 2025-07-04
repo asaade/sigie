@@ -8,9 +8,9 @@ from pydantic import BaseModel # BaseModel se mantiene para el tipo de retorno d
 
 from ..registry import register
 from app.schemas.models import Item
-from app.schemas.item_schemas import ReportEntrySchema, ValidationResultSchema # Mantener estos, ya que se usan directamente
+from app.schemas.item_schemas import ReportEntrySchema, ValidationResultSchema
 from app.pipelines.abstractions import LLMStage
-from app.core.error_metadata import get_error_info
+from app.core.error_metadata import get_error_info # Importar la función get_error_info del catálogo centralizado
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +31,20 @@ class ValidateContentValidityStage(LLMStage):
             self.logger.error(f"Item {item.temp_id} has no payload for _prepare_llm_input in {self.stage_name}.")
             return json.dumps({"error": "No item payload available."})
 
+        # item.payload.model_dump(mode='json') ya convierte UUIDs a string por defecto.
+        # Las comprobaciones explícitas de isinstance(..., UUID) son redundantes si el payload
+        # ya ha sido validado como ItemPayloadSchema.
         item_dict = item.payload.model_dump(mode='json')
 
         llm_input_payload = {
-            "item_id": str(item.temp_id),
+            # CAMBIO CRÍTICO: Pasar item.item_id (el ID permanente del ítem) al LLM,
+            # no item.temp_id (el ID de la ejecución del pipeline).
+            # Esto alinea con lo que el prompt espera en la sección B. Parámetros del Ítem (INPUT).
+            "item_id": str(item.item_id), # <-- CORRECCIÓN APLICADA AQUÍ
             "item_payload": item_dict,
         }
         return json.dumps(llm_input_payload, indent=2, ensure_ascii=False)
+
 
     async def _process_llm_result(self, item: Item, result: ValidationResultSchema):
         """

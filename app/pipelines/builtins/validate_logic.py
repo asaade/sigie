@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import json
 from typing import List, Type
+from uuid import UUID
 from pydantic import BaseModel
 
 from ..registry import register
@@ -32,21 +33,22 @@ class ValidateLogicStage(LLMStage):
             return json.dumps({"error": "No item payload available."})
 
         item_dict = item.payload.model_dump(mode='json')
-        # Asegurarse de que los UUIDs se conviertan a string para el LLM
-        if isinstance(item_dict.get("item_id"), (bytes, bytearray)):
+        # Asegurarse de que los UUIDs se conviertan a string para el LLM (aunque model_dump(mode='json') ya lo hace)
+        # Esto es una salvaguarda si el campo llega en otro formato binario.
+        if isinstance(item_dict.get("item_id"), UUID): # Cambiado de (bytes, bytearray) a UUID para Pydantic v2
              item_dict["item_id"] = str(item.payload.item_id)
 
-        if isinstance(item_dict.get("respuesta_correcta_id"), (bytes, bytearray)):
+        if isinstance(item_dict.get("respuesta_correcta_id"), UUID): # Cambiado de (bytes, bytearray) a UUID
             item_dict["respuesta_correcta_id"] = str(item.payload.respuesta_correcta_id)
 
         for opcion in item_dict.get("opciones", []):
-            if isinstance(opcion.get("id"), (bytes, bytearray)):
+            if isinstance(opcion.get("id"), UUID): # Cambiado de (bytes, bytearray) a UUID
                 opcion["id"] = str(opcion["id"])
 
         llm_input_payload = {
-            "item_id": str(item.temp_id),
-            "item_payload": item_dict,
-            "metadata_context": {
+            "item_id": str(item.temp_id), # Usar temp_id como ID de sesión
+            "item_payload": item_dict, # Pasar el payload completo para el análisis del LLM
+            "metadata_context": { # Pasar contexto específico de metadata
                 "nivel_cognitivo": item.payload.metadata.nivel_cognitivo
             }
         }
@@ -62,7 +64,7 @@ class ValidateLogicStage(LLMStage):
         processed_findings: List[ReportEntrySchema] = []
 
         for llm_finding in result.findings:
-            # MODIFICADO: Obtener toda la información del error, incluyendo fix_hint, del catálogo centralizado
+            # Obtener toda la información del error, incluyendo fix_hint, del catálogo centralizado
             error_info = get_error_info(llm_finding.code)
             true_severity = error_info.get("severity", "error")
             true_fix_hint = error_info.get("fix_hint", None) # Recuperar el fix_hint
@@ -80,10 +82,13 @@ class ValidateLogicStage(LLMStage):
                 has_fatal_finding = True
 
         if processed_findings:
-            item.findings.extend(processed_findings)
+            item.findings.extend(processed_findings) # Añadir los hallazgos al ítem
             if has_fatal_finding:
+                # Si hay algún finding fatal, el estado global del ítem es fatal_error
                 self._set_status(item, "fatal", f"Validación lógica: Fallo fatal. {len(processed_findings)} errores críticos encontrados.")
             else:
+                # Si hay findings pero ninguno es fatal, el estado es fail
                 self._set_status(item, "fail", f"Validación lógica: Falló. {len(processed_findings)} errores encontrados.")
         else:
+            # Si no hay findings, la validación fue exitosa
             self._set_status(item, "success", "Validación lógica: OK.")
