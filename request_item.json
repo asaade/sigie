@@ -1,0 +1,21 @@
+{
+  "n_items": 1,
+  "dominio": {
+    "area": "Ciencias Exactas",
+    "asignatura": "Física",
+    "tema": "Leyes de Newton"
+  },
+  "objetivo_aprendizaje": "Aplicar la Segunda Ley de Newton (F=ma) para calcular la aceleración de un objeto con masa y fuerza conocidas.",
+  "audiencia": {
+    "nivel_educativo": "Bachillerato (1er año)",
+    "dificultad_esperada": "media"
+  },
+  "formato": {
+    "tipo_reactivo": "cuestionamiento_directo",
+    "numero_opciones": 4
+  },
+  "contexto": null,
+  "lote": {
+    "item_ids_a_usar": ["f47ac10b-58cc-4372-a567-0e02b2c3d479"]
+  }
+}

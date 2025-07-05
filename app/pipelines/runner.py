@@ -8,8 +8,8 @@ from pathlib import Path # Importado Pathlib Path
 
 from typing import List, Dict, Any, Tuple # Importaciones de typing
 # Aseguramos que solo se importen los que se usan directamente
-from app.schemas.models import Item
-from app.schemas.item_schemas import UserGenerateParams, ReportEntrySchema
+from app.schemas.models import Item, ItemStatus
+from app.schemas.item_schemas import ItemGenerationParams, ReportEntrySchema
 
 from app.pipelines.registry import get as get_stage_from_registry # Renombrado para evitar conflicto con get_stage
 from app.pipelines.utils.stage_helpers import initialize_items_for_pipeline, add_audit_entry # Importamos la función helper
@@ -24,7 +24,7 @@ def _chunks(lst: List[Any], n: int) -> List[List[Any]]:
 
 async def run(
     pipeline_config_path: str | dict[str, Any],
-    user_params: UserGenerateParams,
+    user_params: ItemGenerationParams,
     *,
     ctx: Dict[str, Any] | None = None,
 ) -> Tuple[List[Item], Dict[str, Any]]:
@@ -77,11 +77,12 @@ async def run(
                             severity="error"
                         )
                     )
-                    add_audit_entry( # Usando add_audit_entry
+                    add_audit_entry(
                         item=item,
                         stage_name=stage_name,
+                        status=ItemStatus.FATAL,
                         summary=f"Error de configuración: Etapa '{stage_name}' no encontrada."
-                    )
+)
             return items, ctx # Devolver ítems con error fatal de configuración
 
         # Instanciar la clase de etapa y ejecutar su método .execute()
@@ -114,10 +115,11 @@ async def run(
                                 severity="error"
                             )
                         )
-                        add_audit_entry( # Usando add_audit_entry
+                        add_audit_entry(
                             item=item,
                             stage_name=stage_name,
-                            summary="Etapa de generación no produjo ítems exitosos. Error fatal."
+                            status=ItemStatus.FATAL,
+                            summary=f"Error de configuración: Etapa '{stage_name}' no encontrada."
                         )
                 return items, ctx
 
@@ -137,10 +139,11 @@ async def run(
                             severity="error"
                         )
                     )
-                    add_audit_entry( # Usando add_audit_entry
+                    add_audit_entry(
                         item=item,
                         stage_name=stage_name,
-                        summary=f"Error fatal inesperado en la etapa: {str(e)[:200]}"
+                        status=ItemStatus.FATAL,
+                        summary=f"Error de configuración: Etapa '{stage_name}' no encontrada."
                     )
             return items, ctx # Devolver ítems con el error fatal
 

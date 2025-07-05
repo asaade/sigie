@@ -1,72 +1,71 @@
 # app/pipelines/builtins/refine_item_style.py
 
 from __future__ import annotations
-import logging
 import json
-
-from typing import Type, List
+from typing import Type, Optional
 from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item
-from app.schemas.item_schemas import RefinementResultSchema, ReportEntrySchema
-
-from app.pipelines.abstractions import LLMStage
-
-from ..utils.stage_helpers import (
-    clean_specific_errors,
-    handle_item_id_mismatch_refinement,
+from app.schemas.item_schemas import (
+    RefinementResultSchema,
 )
-
-
-logger = logging.getLogger(__name__)
+from app.pipelines.abstractions import LLMStage
+from app.pipelines.utils.stage_helpers import handle_item_id_mismatch_refinement
 
 @register("refine_item_style")
-class RefineStyleStage(LLMStage):
+class RefineItemStyleStage(LLMStage):
+    """
+    Etapa de refinamiento que mejora el estilo, redacción y claridad de un ítem.
+    No depende de hallazgos previos y es compatible con la nueva arquitectura.
+    """
+
     def _get_expected_schema(self) -> Type[BaseModel]:
+        """Espera recibir un payload de ítem refinado del LLM."""
         return RefinementResultSchema
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
         Prepara el string de input para el LLM.
-        Incluye los hallazgos de estilo relevantes, o una lista vacía de problemas si no hay.
-        Siempre devuelve un JSON, incluso si no hay problemas explícitos, para permitir la revisión proactiva del LLM.
+        Envía el ítem original (con la nueva estructura) para una revisión holística.
         """
-        # MODIFICADO: Filtrar los findings de severidad 'warning' O 'error' para esta etapa de refinamiento de estilo.
-        relevant_problems_to_fix: List[ReportEntrySchema] = [
-            f for f in item.findings if f.severity in ['warning', 'error'] #
-        ]
-
-        # Asegurarse de que el payload del ítem exista antes de intentar serializarlo
         if not item.payload:
-            self.logger.error(f"Item {item.temp_id} has no payload for _prepare_llm_input in {self.stage_name}.")
-            return json.dumps({"error": "No item payload available."})
+            return json.dumps({"error": "Item payload is missing."})
 
+        # Serializa el payload completo del ítem. El prompt de estilo
+        # está diseñado para tomar el ítem y mejorarlo sin necesidad de
+        # una lista de errores.
+        item_payload_dict = item.payload.model_dump(mode="json")
+
+        # A diferencia de otros refinadores, no enviamos "hallazgos".
+        # El input es simplemente el ítem a mejorar.
         input_payload = {
-            "item_id": str(item.payload.item_id),
-            "item_payload": item.payload.model_dump(mode="json"),
-            "problems": [p.model_dump(mode="json") for p in relevant_problems_to_fix]
+            "item_original": item_payload_dict
         }
         return json.dumps(input_payload, indent=2, ensure_ascii=False)
 
-    async def _process_llm_result(self, item: Item, result: RefinementResultSchema):
+    async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
         """
-        Procesa el resultado del LLM: reemplaza el payload del ítem por la
-        versión refinada y limpia los hallazgos.
+        Procesa el resultado, reemplazando el payload del ítem con la
+        versión estilísticamente mejorada.
         """
-        if result.item_id != item.payload.item_id:
-            handle_item_id_mismatch_refinement(
-                item, self.stage_name, item.payload.item_id, result.item_id,
-                f"{self.stage_name}.fail.id_mismatch",
-                "Item ID mismatched in style correction response."
-            )
+        if not isinstance(result, RefinementResultSchema):
+            msg = "Error interno: el esquema de respuesta del LLM no es RefinementResultSchema."
+            self._set_status(item, "fatal", msg)
             return
 
+        # Valida que el ID del ítem en la respuesta coincida.
+        if handle_item_id_mismatch_refinement(
+            item, self.stage_name, str(item.payload.item_id), str(result.item_id)
+        ):
+            return
+
+        # Asigna el nuevo payload con el estilo corregido.
+        # El `result.item_refinado` ya es un ItemPayloadSchema validado.
         item.payload = result.item_refinado
 
-        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas if correction.error_code}
-        if fixed_codes:
-            clean_specific_errors(item, fixed_codes)
-
-        summary = f"Refinamiento de estilo aplicado. {len(result.correcciones_realizadas)} correcciones reportadas."
+        # Aunque este agente no corrige errores específicos, podría reportar
+        # las mejoras realizadas.
+        num_corrections = len(result.correcciones_realizadas)
+        summary = f"Refinamiento de estilo aplicado. {num_corrections} correcciones reportadas."
         self._set_status(item, "success", summary, corrections=result.correcciones_realizadas)

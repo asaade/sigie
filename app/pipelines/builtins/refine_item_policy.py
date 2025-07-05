@@ -1,21 +1,27 @@
 # app/pipelines/builtins/refine_item_policy.py
 
 from __future__ import annotations
-import json # Necesario para json.dumps en _prepare_llm_input
-from typing import Type # Necesario para Type[BaseModel]
-from pydantic import BaseModel # Necesario para Type[BaseModel]
+import json
+from typing import Type, Optional, List
+from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item
-from app.schemas.item_schemas import RefinementResultSchema, ReportEntrySchema # Importar ReportEntrySchema
+from app.schemas.item_schemas import (
+    RefinementResultSchema,
+    ReportEntrySchema,
+)
 from app.pipelines.abstractions import LLMStage
-from app.pipelines.utils.stage_helpers import clean_specific_errors, handle_item_id_mismatch_refinement # handle_item_id_mismatch_refinement se mantiene como helper por ahora
+from app.pipelines.utils.stage_helpers import (
+    clean_specific_errors,
+    handle_item_id_mismatch_refinement,
+)
 
 @register("refine_item_policy")
-class RefinePolicyStage(LLMStage):
+class RefineItemPolicyStage(LLMStage):
     """
-    Etapa de refinamiento que corrige un ítem basándose en los hallazgos
-    de políticas (con severidad 'warning' o 'error') detectados previamente.
+    Etapa de refinamiento que corrige un ítem basándose en hallazgos de políticas.
+    Actualizado para ser compatible con la nueva arquitectura de payload.
     """
 
     def _get_expected_schema(self) -> Type[BaseModel]:
@@ -25,46 +31,48 @@ class RefinePolicyStage(LLMStage):
     def _prepare_llm_input(self, item: Item) -> str:
         """
         Prepara el string de input para el LLM.
+        Incluye el ítem original (con la nueva estructura) y los hallazgos a corregir.
         """
-        # CORRECCIÓN: Filtrar hallazgos de severidad 'error' O 'warning' para esta etapa de refinamiento de política.
-        # Asumo que todos los findings relevantes para política ya están en item.findings
-        relevant_problems_to_fix: List[ReportEntrySchema] = [
-            f for f in item.findings if f.severity in ['error', 'warning']
-            # Opcional: añadir un filtro por tipo de código si la categoría 'POLITICAS' se distingue
-            # if f.code.startswith('E') or f.code.startswith('W') para códigos de política
+        if not item.payload or not item.findings:
+            return json.dumps({"error": "Item payload or findings are missing."})
+
+        # Serializa el payload del ítem con la nueva estructura anidada.
+        item_payload_dict = item.payload.model_dump(mode="json")
+
+        # Filtra solo los hallazgos de políticas (ej. errores 'E3xx').
+        relevant_problems: List[ReportEntrySchema] = [
+            f for f in item.findings if f.code.startswith('E3')
         ]
 
         input_payload = {
-            "item_id": str(item.payload.item_id), # CAMBIO CRÍTICO: Convertir UUID a string
-            "item_payload": item.payload.model_dump(mode="json"),
-            "problems": [p.model_dump(mode="json") for p in relevant_problems_to_fix]
+            "item_original": item_payload_dict,
+            "hallazgos_a_corregir": [p.model_dump(mode="json") for p in relevant_problems]
         }
         return json.dumps(input_payload, indent=2, ensure_ascii=False)
 
-    async def _process_llm_result(self, item: Item, result: RefinementResultSchema):
+    async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
         """
-        Procesa el resultado, reemplazando el payload del ítem por la
-        versión con las políticas corregidas y limpiando los hallazgos.
+        Procesa el resultado, reemplazando el payload del ítem con la
+        versión corregida por el LLM.
         """
-        # Verificación de seguridad: asegurar que el LLM corrigió el ítem correcto.
-        if result.item_id != item.payload.item_id:
-            # Usamos el helper de stage_helpers
-            handle_item_id_mismatch_refinement(
-                item, self.stage_name, item.payload.item_id, result.item_id,
-                f"{self.stage_name}.fail.id_mismatch",
-                "Item ID mismatched in policy refinement response."
-            )
+        if not isinstance(result, RefinementResultSchema):
+            msg = "Error interno: el esquema de la respuesta del LLM no es RefinementResultSchema."
+            self._set_status(item, "fatal", msg)
             return
 
-        # Aplica la corrección: reemplaza el payload del ítem
+        # Valida que el ID del ítem en la respuesta coincida.
+        if handle_item_id_mismatch_refinement(
+            item, self.stage_name, str(item.payload.item_id), str(result.item_id)
+        ):
+            return
+
+        # Asigna el nuevo payload corregido y ya validado por Pydantic.
         item.payload = result.item_refinado
 
-        # Limpia los hallazgos (errores/advertencias) que el LLM reporta haber corregido.
-        # Esto incluye limpiar hallazgos LLM genéricos de fallo de llamada/parseo si esta etapa corrigió el problema.
-        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas if correction.error_code}
+        # Limpia los errores que el LLM reporta haber corregido.
+        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas}
         if fixed_codes:
-            clean_specific_errors(item, fixed_codes) # Usamos el helper de stage_helpers
+            clean_specific_errors(item, fixed_codes)
 
-        # Marcar el estado de éxito y registrar la auditoría.
-        summary = f"Policy refinement applied. {len(fixed_codes)} issues reported as fixed."
+        summary = f"Refinamiento de políticas aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
         self._set_status(item, "success", summary, corrections=result.correcciones_realizadas)

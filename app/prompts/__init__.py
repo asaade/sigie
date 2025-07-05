@@ -1,31 +1,49 @@
 # app/prompts/__init__.py
-import os
-import re
-from typing import Dict
 
-PROMPT_DIR = os.path.join(os.path.dirname(__file__))
+import logging
+from pathlib import Path
+from typing import Dict, Union
 
-def load_prompt(name: str) -> Dict[str, str]:
+logger = logging.getLogger(__name__)
+
+PROMPT_SEPARATOR = "***"
+
+_PROMPT_CACHE: Dict[str, Union[str, Dict[str, str]]] = {}
+_PROMPTS_DIR = Path(__file__).parent.resolve()
+
+def load_prompt(prompt_name: str) -> Union[str, Dict[str, str]]:
     """
-    Carga una plantilla de prompt desde un archivo Markdown y la parsea en
-    partes de mensaje del sistema y plantilla de mensaje de usuario.
-    Asume que el contenido antes de la primera '---' es el mensaje del sistema.
-    El resto del archivo es la plantilla del mensaje de usuario.
+    Carga un prompt desde el archivo .md correspondiente, lo cachea y lo devuelve.
+    Ahora utiliza '***' como el separador para dividir el system_message del content.
     """
-    path = os.path.join(PROMPT_DIR, name)
+    if prompt_name in _PROMPT_CACHE:
+        return _PROMPT_CACHE[prompt_name]
+
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            content = f.read()
+        file_path = _PROMPTS_DIR / prompt_name
+        with open(file_path, 'r', encoding='utf-8') as f:
+            full_content = f.read()
+
+        # Se busca el separador '***'
+        if PROMPT_SEPARATOR in full_content:
+            parts = full_content.split(PROMPT_SEPARATOR, 1)
+            system_message = parts[0].strip()
+            content_template = parts[1].strip()
+
+            prompt_data = {
+                "system_message": system_message,
+                "content": content_template
+            }
+            _PROMPT_CACHE[prompt_name] = prompt_data
+            return prompt_data
+        else:
+            # Si no hay separador, se trata todo como una sola plantilla.
+            _PROMPT_CACHE[prompt_name] = full_content
+            return full_content
+
     except FileNotFoundError:
-        raise FileNotFoundError(f"Prompt file not found: {path}")
-
-    # Dividir el contenido por la primera ocurrencia de '---'
-    parts = re.split(r'\n---+\n', content, 1)
-
-    system_message = parts[0].strip() if parts else ""
-    user_message_template = parts[1].strip() if len(parts) > 1 else ""
-
-    return {
-        "system_message": system_message,
-        "user_message_template": user_message_template
-    }
+        logger.error(f"Error: Archivo de prompt no encontrado en '{file_path}'")
+        raise
+    except Exception as e:
+        logger.error(f"Error al cargar el prompt '{prompt_name}': {e}")
+        raise

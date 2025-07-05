@@ -45,6 +45,11 @@ class BaseLLMClient:
     def retry_exceptions(cls) -> Tuple[Type[Exception], ...]:
         return ()
 
+    def _clean_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        kwargs.pop("prompt", None)
+        kwargs.pop("provider", None)
+        return kwargs
+
     async def generate_response(
         self,
         messages: List[Dict[str, str]],
@@ -54,10 +59,11 @@ class BaseLLMClient:
         kwargs = kwargs or {}
 
         try:
-            provider_resp = await self._retry(self._call)(messages, kwargs)
-            return self._parse_response(provider_resp)
+            cleaned_kwargs = self._clean_kwargs(kwargs.copy())
+            provider_resp = await self._retry(self._call)(messages, cleaned_kwargs)
+            return self._parse_response(provider_resp, model_name=kwargs.get("model", "unknown"))
         except Exception as e:
-            self.logger.error(f"Error durante la llamada LLM o el parseo de respuesta para {self.__class__.__name__}: {e}", exc_info=True)
+            self.logger.error(f"Error durante la llamada LLM para {self.__class__.__name__}: {e}", exc_info=True)
             return LLMResponse(
                 text="",
                 model=kwargs.get("model", "unknown"),
@@ -67,10 +73,10 @@ class BaseLLMClient:
                 error_message=str(e)
             )
 
-    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any for more flexibility
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any:
         raise NotImplementedError
 
-    def _parse_response(self, provider_resp: Any) -> LLMResponse:
+    def _parse_response(self, provider_resp: Any, model_name: str) -> LLMResponse:
         raise NotImplementedError
 
 from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, AuthenticationError
@@ -81,7 +87,7 @@ class OpenAIClient(BaseLLMClient):
     def retry_exceptions(cls):
         return (RateLimitError, APIError, APITimeoutError, AuthenticationError)
 
-    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any:
         client = AsyncOpenAI(
             base_url=self.settings.openai_base_url or None,
             api_key=self.settings.openai_api_key or None,
@@ -96,11 +102,11 @@ class OpenAIClient(BaseLLMClient):
         params.update(kwargs)
         return await client.chat.completions.create(**params)
 
-    def _parse_response(self, res: Any) -> LLMResponse:
+    def _parse_response(self, res: Any, model_name: str) -> LLMResponse:
         usage = getattr(res, "usage", None)
         return LLMResponse(
             text=res.choices[0].message.content or "",
-            model=res.model,
+            model=res.model or model_name,
             usage={
                 "prompt": getattr(usage, "prompt_tokens", 0),
                 "completion": getattr(usage, "completion_tokens", 0),
@@ -120,7 +126,7 @@ class OpenRouterClient(OpenAIClient):
             timeout=self.settings.llm_request_timeout
         )
 
-    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any:
         params = {
             "model": kwargs.pop("model", self.settings.llm_model),
             "messages": messages,
@@ -142,52 +148,37 @@ class GeminiClient(BaseLLMClient):
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
-        self._client = genai.Client(api_key=self.settings.google_api_key)
+        self.client = genai.Client(api_key=self.settings.google_api_key)
 
-        # SECCIÓN ELIMINADA: La advertencia sobre gemini_base_url no es necesaria si no se usa.
-        # if self.settings.gemini_base_url:
-        #     self.logger.warning("gemini_base_url not directly supported by genai.Client() via api_endpoint in this way. Check new SDK docs.")
-
-    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
-        system_instruction_content = ""
-        gemini_contents = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_instruction_content = msg["content"]
-            elif msg["role"] == "user":
-                gemini_contents.append(msg["content"])
-            elif msg["role"] == "model":
-                gemini_contents.append({"role": "model", "parts": [msg["content"]]})
-
-
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any:
+        system_instruction = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
+        gemini_contents = [msg["content"] for msg in messages if msg["role"] == "user"]
         model_name = kwargs.pop("model", self.settings.llm_model)
 
-        generate_content_config_params = {
+        # --- INICIO DE LA CORRECCIÓN ---
+        # 1. Construir el diccionario de configuración con TODOS los parámetros de comportamiento.
+        config_params = {
             "temperature": kwargs.pop("temperature", self.settings.llm_temperature),
             "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
+            "system_instruction": system_instruction
         }
+        # Eliminar parámetros nulos para no enviarlos
+        config_params = {k: v for k, v in config_params.items() if v is not None}
 
-        # Filtra 'timeout' explícitamente antes de pasarlo a la configuración o generate_content
-        if 'timeout' in kwargs:
-            self.logger.warning(
-                f"Removed unsupported 'timeout' argument for Gemini's generate_content call in stage "
-                f"(check new SDK docs for timeout handling if needed). Value was: {kwargs['timeout']}"
-            )
-            kwargs.pop("timeout") # Elimina el argumento no soportado
+        # 2. Construir el objeto GenerateContentConfig
+        generation_config = types.GenerateContentConfig(**config_params)
 
-        generate_content_config = types.GenerateContentConfig(
-            **generate_content_config_params,
-            system_instruction=system_instruction_content if system_instruction_content else None,
-        )
-
-        return await self._client.aio.models.generate_content(
+        # 3. Llamar al método generate_content del cliente, pasando la configuración
+        #    en el parámetro 'config'.
+        return await self.client.models.generate_content(
              model=model_name,
              contents=gemini_contents,
-             config=generate_content_config,
-             **kwargs # Pasa solo los kwargs soportados; 'timeout' ya ha sido eliminado
+             config=generation_config,
+             **kwargs # Pasa el resto de kwargs (si los hubiera)
         )
+        # --- FIN DE LA CORRECCIÓN ---
 
-    def _parse_response(self, res: Any) -> LLMResponse: # Changed type hint from GenerateContentResponse
+    def _parse_response(self, res: Any, model_name: str) -> LLMResponse:
         text_content = ""
         prompt_tokens = 0
         completion_tokens = 0
@@ -200,12 +191,10 @@ class GeminiClient(BaseLLMClient):
         except (AttributeError, IndexError):
             self.logger.warning("No se pudo extraer texto de la respuesta de Gemini.")
 
-        if res.usage_metadata:
+        if hasattr(res, 'usage_metadata') and res.usage_metadata:
              total_tokens = getattr(res.usage_metadata, 'total_token_count', 0)
              prompt_tokens = getattr(res.usage_metadata, 'prompt_token_count', 0)
              completion_tokens = getattr(res.usage_metadata, 'candidates_token_count', 0)
-
-        model_name = getattr(res, 'model', 'gemini-model')
 
         return LLMResponse(
             text=text_content,
@@ -223,7 +212,7 @@ class OllamaClient(BaseLLMClient):
     def retry_exceptions(cls):
         return (ollama.ResponseError, ConnectionError, TimeoutError)
 
-    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any: # Type hint messages changed to Any
+    async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any:
         host = self.settings.ollama_host
         client = ollama.AsyncClient(host=host)
 
@@ -239,25 +228,16 @@ class OllamaClient(BaseLLMClient):
         }
         chat_params.update(kwargs)
 
-        # CRÍTICO: Eliminado 'timeout' de aquí, ya que AsyncClient.chat() no lo acepta directamente
-        # The 'timeout' keyword argument is removed from chat_params before passing,
-        # ensuring it's not passed to ollama.AsyncClient.chat which doesn't support it directly.
         if 'timeout' in chat_params:
-            self.logger.warning(
-                f"Removed unsupported 'timeout' argument for Ollama's chat call in stage "
-                f"(check OllamaClient or AsyncClient docs for timeout handling if needed). Value was: {chat_params['timeout']}"
-            )
             chat_params.pop("timeout")
 
         return await client.chat(**chat_params)
 
-
-    def _parse_response(self, res: Any) -> LLMResponse:
+    def _parse_response(self, res: Any, model_name: str) -> LLMResponse:
         text_content = res.get("message", {}).get("content", "")
         prompt_tokens = res.get("prompt_eval_count", 0)
         completion_tokens = res.get("eval_count", 0)
         total_tokens = prompt_tokens + completion_tokens
-        model_name = res.get("model", "ollama-model")
 
         return LLMResponse(
             text=text_content,
@@ -268,17 +248,13 @@ class OllamaClient(BaseLLMClient):
         )
 
 async def generate_response(
-    messages: List[Dict[str, Any]], # Type hint messages changed to Any
+    messages: List[Dict[str, Any]],
     model: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     provider: Optional[str] = None,
     **kwargs: Any,
 ) -> LLMResponse:
-    """
-    Genera una respuesta usando el proveedor LLM indicado (o el por defecto en settings.llm_provider).
-    Permite sobrescribir model, temperature, max_tokens por llamada.
-    """
     prov = provider or settings.llm_provider
     client = get_provider(prov)
 
@@ -288,7 +264,6 @@ async def generate_response(
         "max_tokens": max_tokens,
     }
     call_kwargs = {k: v for k, v in call_kwargs.items() if v is not None}
-
     call_kwargs.update(kwargs)
 
     return await client.generate_response(messages, call_kwargs)

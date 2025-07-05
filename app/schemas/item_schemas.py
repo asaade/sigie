@@ -1,179 +1,131 @@
 # app/schemas/item_schemas.py
 
-from datetime import datetime
-from typing import List, Optional, Literal, Dict, Any
-from uuid import UUID
+from __future__ import annotations
+from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, UUID4
+from datetime import date, datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, HttpUrl, validator, ConfigDict
+# ---------------------------------------------------------------------------
+# Sub-Schemas para la nueva arquitectura del Ítem
+# ---------------------------------------------------------------------------
 
-# --- Definiciones de Enums para tipos restringidos ---
-class TipoRecursoVisual(str, Enum):
-    GRAFICO = 'grafico'
-    TABLA = 'tabla'
-    DIAGRAMA = 'diagrama'
+class DominioSchema(BaseModel):
+    area: str
+    asignatura: str
+    tema: str
 
-class TipoReactivo(str, Enum): # Renombrado de Literal a Enum
+class AudienciaSchema(BaseModel):
+    nivel_educativo: str
+    dificultad_esperada: Literal["facil", "media", "dificil"]
+
+class FormatoSchema(BaseModel):
+    tipo_reactivo: Literal["cuestionamiento_directo", "completamiento", "ordenamiento", "relacion_elementos"]
+    numero_opciones: int
+
+class TipoReactivo(str, Enum):
+    """Enum para los tipos de reactivo, para retrocompatibilidad."""
     CUESTIONAMIENTO_DIRECTO = "cuestionamiento_directo"
-    COMPLETAMIENTO = 'completamiento'
+    COMPLETAMIENTO = "completamiento"
     ORDENAMIENTO = "ordenamiento"
     RELACION_ELEMENTOS = "relacion_elementos"
 
-class NivelCognitivoEnum(str, Enum):
-    RECORDAR = "recordar"
-    COMPRENDER = "comprender"
-    APLICAR = "aplicar"
-    ANALIZAR = "analizar"
-    EVALUAR = "evaluar"
-    CREAR = "crear"
+class ContextoSchema(BaseModel):
+    contexto_regional: Optional[str] = None
+    referencia_curricular: Optional[str] = None
 
-class DificultadPrevistaEnum(str, Enum):
-    FACIL = "facil"
-    MEDIA = "media"
-    DIFICIL = "dificil"
+class ArquitecturaSchema(BaseModel):
+    dominio: DominioSchema
+    objetivo_aprendizaje: str = Field(..., description="Verbo de Bloom + contenido. La directriz principal del ítem.")
+    audiencia: AudienciaSchema
+    formato: FormatoSchema
+    contexto: ContextoSchema
 
-# --- Esquemas para componentes del ítem ---
-class RecursoVisualSchema(BaseModel):
-    tipo: TipoRecursoVisual
-    descripcion: str = Field(..., min_length=1, max_length=600)
-    alt_text: str = Field(..., min_length=1, max_length=250)
-    referencia: HttpUrl
-    pie_de_imagen: Optional[str] = Field(None, max_length=300)
+class OpcionCuerpoSchema(BaseModel):
+    id: str
+    texto: str
 
-    model_config = ConfigDict(frozen=True)
+class CuerpoItemSchema(BaseModel):
+    estimulo: Optional[str] = None
+    enunciado_pregunta: str
+    opciones: List[OpcionCuerpoSchema]
 
-class MetadataSchema(BaseModel):
-    area: str
-    asignatura: str
-    tema: str
-    contexto_regional: Optional[str] = Field(None, max_length=100) # Añadido max_length
-    nivel_destinatario: str
-    nivel_cognitivo: NivelCognitivoEnum
-    dificultad_prevista: DificultadPrevistaEnum
-    errores_comunes: Optional[List[str]] = Field(None, description="Lista de errores conceptuales o razonamientos comunes que llevan a elegir los distractores.") # AÑADIDO ESTE CAMPO
-    # parametro_irt_b: Optional[float] = None # ELIMINADO: Ya no se considera en el esquema
-    referencia_curricular: Optional[str] = Field(None, max_length=500) # Añadido max_length
-    habilidad_evaluable: Optional[str] = Field(None, max_length=300) # Añadido max_length
-    fecha_creacion: Optional[datetime] = None
+class RetroalimentacionOpcionSchema(BaseModel):
+    id: str
+    es_correcta: bool
+    justificacion: str = Field(..., max_length=500)
 
-    model_config = ConfigDict(from_attributes=True)
+class ClaveDiagnosticoSchema(BaseModel):
+    respuesta_correcta_id: str
+    errores_comunes_mapeados: List[str]
+    retroalimentacion_opciones: List[RetroalimentacionOpcionSchema]
 
-class OpcionSchema(BaseModel):
-    id: Literal["a", "b", "c", "d"]
-    texto: str = Field(..., min_length=1, max_length=140)
-    es_correcta: bool = False
-    justificacion: str = Field(..., min_length=1, max_length=700)
-
-    model_config = ConfigDict(from_attributes=True)
-
-# --- Esquema principal para el payload de un ítem ---
-class ItemPayloadSchema(BaseModel):
-    item_id: UUID
-    testlet_id: Optional[UUID] = None
-    estimulo_compartido: Optional[str] = Field(None, max_length=1500)
-    metadata: MetadataSchema
-    tipo_reactivo: TipoReactivo
-    fragmento_contexto: Optional[str] = Field(None, max_length=500)
-    recurso_visual: Optional[RecursoVisualSchema] = None
-    enunciado_pregunta: str = Field(..., min_length=1, max_length=250)
-    opciones: List[OpcionSchema] = Field(..., min_length=3, max_length=4) # Se mantiene la flexibilidad de 3 o 4 opciones
-    respuesta_correcta_id: Literal["a", "b", "c", "d"]
-
-    @validator('testlet_id', 'estimulo_compartido', pre=True, always=True)
-    def ensure_testlet_fields_consistency(cls, v: Any):
-        if isinstance(v, str) and v.strip() == "":
-            return None
-        return v
-
-    @validator('fragmento_contexto', pre=True, always=True)
-    def ensure_fragmento_contexto_consistency(cls, v: Any):
-        if isinstance(v, dict) and not v:
-            return None
-        if isinstance(v, str) and v.strip() == "":
-            return None
-        return v
-
-    @validator('recurso_visual', pre=True, always=True)
-    def ensure_recurso_visual_consistency(cls, v: Any):
-        if isinstance(v, dict) and not v:
-            return None
-        return v
-
-    model_config = ConfigDict(from_attributes=True)
-
-# --- Esquemas para el flujo del pipeline (hallazgos, correcciones, auditorías) ---
-class ReportEntrySchema(BaseModel):
-    code: str = Field(..., max_length=150)
-    message: str = Field(..., max_length=2000)
-    field: Optional[str] = Field(None, max_length=300)
-    severity: Literal['fatal', 'error', 'warning']
-    fix_hint: Optional[str] = Field(None, max_length=500) # Añadido max_length
-
-    model_config = ConfigDict(frozen=True)
-
-class CorrectionEntrySchema(BaseModel):
-    field: str = Field(..., description="Campo del ítem que fue modificado (ej. 'enunciado_pregunta', 'opciones[0].texto').")
-    error_code: str = Field(..., description="Código de error que motivó la corrección.")
-    original: Optional[str] = Field(None, description="Valor original del campo antes de la corrección.")
-    corrected: Optional[str] = Field(None, description="Nuevo valor del campo después de la corrección.")
-    reason: str = Field(..., min_length=1, max_length=500, description="Descripción del agente sobre la razón de la corrección.") # HECHO OBLIGATORIO y con max_length
-
-    model_config = ConfigDict(frozen=True)
-
-class AuditEntrySchema(BaseModel):
-    stage: str = Field(..., max_length=50, description="Nombre de la etapa/agente que realizó la observación/cambio.")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Momento en que se registró la entrada.")
-    summary: str = Field(..., max_length=2000, description="Resumen cualitativo de la acción o la observación.")
-    corrections: List[CorrectionEntrySchema] = Field(default_factory=list, description="Detalle de las correcciones aplicadas si esta etapa modificó el ítem.")
-
-    model_config = ConfigDict(frozen=True)
-
-class RefinementResultSchema(BaseModel):
-    item_id: UUID
-    item_refinado: ItemPayloadSchema
-    correcciones_realizadas: List[CorrectionEntrySchema] = Field(default_factory=list)
-    observaciones_agente: Optional[str] = Field(None, max_length=1000) # Añadido max_length
-
-    model_config = ConfigDict(from_attributes=True)
-
-class ValidationResultSchema(BaseModel):
-    is_valid: bool = Field(..., description="Veredicto final de la validación. True si pasa, False si falla.")
-    findings: List[ReportEntrySchema] = Field(
-        default_factory=list,
-        description="Lista de problemas, errores o advertencias encontrados por el LLM."
-    )
+class MetadataCreacionSchema(BaseModel):
+    fecha_creacion: date
+    agente_generador: str
+    version: str = "7.0"
 
 class FinalEvaluationSchema(BaseModel):
+    is_publishable: bool
+    score: float = Field(..., ge=0, le=10)
+    justification: str
+
+# ---------------------------------------------------------------------------
+# Schema Principal del Payload del Ítem (NUEVA ESTRUCTURA)
+# ---------------------------------------------------------------------------
+
+class ItemPayloadSchema(BaseModel):
+    item_id: UUID4
+    arquitectura: ArquitecturaSchema
+    cuerpo_item: CuerpoItemSchema
+    clave_y_diagnostico: ClaveDiagnosticoSchema
+    metadata_creacion: MetadataCreacionSchema
+    testlet_id: Optional[UUID4] = None
+    final_evaluation: Optional[FinalEvaluationSchema] = None
+
+# ---------------------------------------------------------------------------
+# Schemas para la API y el Pipeline Interno
+# ---------------------------------------------------------------------------
+
+class ItemGenerationParams(BaseModel):
+    dominio: DominioSchema
+    objetivo_aprendizaje: str
+    audiencia: AudienciaSchema
+    formato: FormatoSchema
+    contexto: Optional[ContextoSchema] = None
+    n_items: int = Field(1, gt=0)
+    lote: Optional[dict] = None
+
+class GenerationResultSchema(BaseModel):
+    success: bool
+    total_tokens_used: int
+    results: List[dict]
+
+class ReportEntrySchema(BaseModel):
+    code: str
+    severity: Literal["info", "warning", "error", "fatal"]
+    message: str
+    component_id: Optional[str] = None
+
+class ValidationResultSchema(BaseModel):
+    is_valid: bool
+    findings: List[ReportEntrySchema] = []
+
+class CorrectionSchema(BaseModel):
+    error_code: str
+    summary_of_correction: str
+
+class RefinementResultSchema(BaseModel):
+    item_id: str
+    item_refinado: ItemPayloadSchema
+    correcciones_realizadas: List[CorrectionSchema]
+
+class AuditEntrySchema(BaseModel):
     """
-    Define la estructura de la evaluación final emitida por un LLM.
+    Schema para una entrada individual en el registro de auditoría de un ítem.
+    Describe qué etapa se ejecutó, cuándo y cuál fue el resultado.
     """
-    is_publishable: bool = Field(..., description="Veredicto final sobre si el ítem está listo para ser publicado.")
-    score: Optional[float] = Field(None, ge=0, le=10, description="Una puntuación numérica de la calidad general del ítem (0-10).")
-    justification: str = Field(..., min_length=1, max_length=1000, description="Un resumen cualitativo que justifica la puntuación y el veredicto.") # Añadido min_length, max_length
-
-    model_config = ConfigDict(frozen=True)
-
-# --- Esquema para la solicitud de generación de ítems (input para el pipeline) ---
-class UserGenerateParams(BaseModel):
-    n_items: int = Field(1, ge=1, le=5)
-    # CAMBIO AQUÍ: Añadir item_ids_a_usar a los parámetros de entrada del usuario
-    item_ids_a_usar: Optional[List[str]] = None # Puede ser List[UUID] si se prefiere tipado estricto al recibir UUIDs en str
-
-    area: str
-    asignatura: str
-    tema: str
-    nivel_destinatario: str
-    nivel_cognitivo: NivelCognitivoEnum
-    dificultad_prevista: DificultadPrevistaEnum
-    tipo_generacion: Literal["item", "testlet"] = "item"
-    tipo_reactivo: TipoReactivo = Field(TipoReactivo.CUESTIONAMIENTO_DIRECTO) # Se cambió el valor por defecto a un miembro existente.
-    habilidad: Optional[str] = Field(None, max_length=300)
-    referencia_curricular: Optional[str] = Field(None, max_length=500)
-    recurso_visual: Optional[Dict[str, Any]] = Field(None)
-    estimulo_compartido: Optional[str] = Field(None, max_length=1500)
-    testlet_id: Optional[UUID] = Field(None)
-    especificaciones_por_item: Optional[List[Dict[str, Any]]] = Field(None)
-    contexto_regional: Optional[str] = Field(None, max_length=100)
-    fragmento_contexto: Optional[str] = Field(None, max_length=500)
-
-    model_config = ConfigDict(extra="forbid")
+    stage: str
+    timestamp: datetime
+    summary: str
+    corrections: List[CorrectionSchema] = []

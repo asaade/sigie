@@ -33,7 +33,6 @@ stages:
       temperature: 0.5
       max_tokens: 2500
       listen_to_status_pattern: ".fail"
-      next_stage_on_success: validate_logic # Bucle de refinamiento: vuelve a la validación lógica
 
   # XX. Ciclo de validación y REFINAMIENTO de contenido (PEDAGÓGICO/PSICOMÉTRICO)
   - name: validate_content_validity
@@ -52,7 +51,6 @@ stages:
       temperature: 0.5 # Poca creatividad para corrección, más precisión
       max_tokens: 2500
       listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de validate_content_validity
-      next_stage_on_success: validate_content_validity # <--- IMPORTANTE: Bucle de refinamiento
       max_retries: 3 # <--- Opcional pero recomendado para evitar bucles infinitos (puedes ajustar el número)
 
   # 4. Ciclo de validación y refinamiento de políticas
@@ -72,7 +70,6 @@ stages:
       temperature: 0.5
       max_tokens: 2500
       listen_to_status_pattern: ".fail"
-      next_stage_on_success: validate_policy # Bucle de refinamiento
 
   # 5. Validación programática de reglas suaves (advertencias)
   - name: validate_soft
@@ -97,8 +94,8 @@ stages:
   - name: finalize_item
     params:
       prompt: "07_agent_final.md"
-      provider: openrouter # Asumo que sigues usando OpenRouter para esta etapa
-      model: "deepseek/deepseek-r1:free"
+      provider: gemini
+      model: "gemini-2.0-flash"
       temperature: 0.2
       max_tokens: 2000
 

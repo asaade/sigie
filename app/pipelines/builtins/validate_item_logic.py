@@ -1,4 +1,4 @@
-# app/pipelines/builtins/validate_content_validity.py
+# app/pipelines/builtins/validate_item_logic.py
 
 from __future__ import annotations
 import json
@@ -13,11 +13,10 @@ from app.pipelines.utils.stage_helpers import (
     get_error_message_from_validation_result,
 )
 
-@register("validate_content_validity")
-class ValidateContentValidityStage(LLMStage):
+@register("validate_item_logic")
+class ValidateItemLogicStage(LLMStage):
     """
-    Etapa de validación que revisa la validez de contenido de un ítem:
-    alineación curricular, precisión conceptual y pertinencia pedagógica.
+    Etapa de validación que revisa la consistencia lógica interna de un ítem.
     Actualizado para ser compatible con la nueva arquitectura de payload.
     """
 
@@ -28,32 +27,38 @@ class ValidateContentValidityStage(LLMStage):
     def _prepare_llm_input(self, item: Item) -> str:
         """
         Prepara el string de input para el LLM.
-        Envía el payload completo del ítem, que ahora tiene una estructura anidada,
-        para que el validador de contenido tenga todo el contexto necesario.
+        Envía el payload completo del ítem, que ahora tiene una estructura anidada.
         """
         if not item.payload:
+            # Esta comprobación es importante por si un ítem llega sin payload.
             return json.dumps({"error": "Item payload is missing."})
 
-        # Serializa el payload completo a un diccionario.
-        # Esto incluye la 'arquitectura' (con el objetivo_aprendizaje),
-        # el 'cuerpo_item' y la 'clave_y_diagnostico'.
+        # item.payload es un objeto Pydantic. model_dump() lo serializa a un dict
+        # que puede ser convertido a JSON, respetando la nueva estructura.
         item_payload_dict = item.payload.model_dump(mode='json')
         return json.dumps(item_payload_dict, indent=2, ensure_ascii=False)
 
     async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
         """
-        Procesa el resultado de la validación de contenido y actualiza el estado del ítem.
+        Procesa el resultado de la validación lógica y actualiza el estado del ítem.
         """
+        if result is None:
+            # Si no hubo llamada al LLM (optimización) o falló la llamada.
+            # El estado ya debería estar manejado por la clase base.
+            self.logger.info(f"Item {item.temp_id} en {self.stage_name}: No se recibió resultado del LLM.")
+            return
+
         if not isinstance(result, ValidationResultSchema):
+            # Si el LLM devuelve un formato inesperado.
             msg = "Error interno: el esquema de la respuesta del LLM no es ValidationResultSchema."
             self._set_status(item, "fatal", msg)
             return
 
         if result.is_valid:
-            summary = "Validación de contenido: OK."
+            summary = "Validación lógica: OK."
             self._set_status(item, "success", summary)
         else:
-            # El ítem tiene fallos de contenido.
-            summary = get_error_message_from_validation_result(result, "Contenido")
+            # El ítem tiene fallos lógicos.
+            summary = get_error_message_from_validation_result(result, "Lógica")
             item.findings.extend(result.findings)
             self._set_status(item, "fail", summary)

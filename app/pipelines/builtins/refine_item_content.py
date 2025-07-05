@@ -1,4 +1,4 @@
-# app/pipelines/builtins/refine_item_logic.py
+# app/pipelines/builtins/refine_item_content.py
 
 from __future__ import annotations
 import json
@@ -17,11 +17,11 @@ from app.pipelines.utils.stage_helpers import (
     handle_item_id_mismatch_refinement,
 )
 
-@register("refine_item_logic")
-class RefineItemLogicStage(LLMStage):
+@register("refine_item_content")
+class RefineItemContentStage(LLMStage):
     """
-    Etapa de refinamiento que corrige un ítem basándose en hallazgos lógicos.
-    Actualizado para ser compatible con la nueva arquitectura de payload.
+    Etapa de refinamiento que corrige un ítem basándose en hallazgos
+    de validez de contenido. Compatible con la nueva arquitectura de payload.
     """
 
     def _get_expected_schema(self) -> Type[BaseModel]:
@@ -39,21 +39,24 @@ class RefineItemLogicStage(LLMStage):
         # Serializa el payload del ítem con la nueva estructura anidada.
         item_payload_dict = item.payload.model_dump(mode="json")
 
-        # Filtra solo los hallazgos relevantes para esta etapa (ej. errores lógicos 'E1xx').
+        # Filtra solo los hallazgos de contenido (ej. errores 'E2xx').
         relevant_problems: List[ReportEntrySchema] = [
-            f for f in item.findings if f.code.startswith('E1')
+            f for f in item.findings if f.code.startswith('E2')
         ]
 
         input_payload = {
             "item_original": item_payload_dict,
-            "hallazgos_a_corregir": [p.model_dump(mode="json") for p in relevant_problems]
+            "feedback_validacion_contenido": {
+                "is_valid": False, # Siempre será False si esta etapa se activa
+                "findings": [p.model_dump(mode="json") for p in relevant_problems]
+            }
         }
         return json.dumps(input_payload, indent=2, ensure_ascii=False)
 
     async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
         """
         Procesa el resultado, reemplazando el payload del ítem con la
-        versión corregida por el LLM.
+        versión corregida y validada por el LLM.
         """
         if not isinstance(result, RefinementResultSchema):
             msg = "Error interno: el esquema de la respuesta del LLM no es RefinementResultSchema."
@@ -61,15 +64,12 @@ class RefineItemLogicStage(LLMStage):
             return
 
         # Valida que el ID del ítem en la respuesta coincida.
-        # Usa el item_id del payload, que es un UUID, convirtiéndolo a string.
         if handle_item_id_mismatch_refinement(
             item, self.stage_name, str(item.payload.item_id), str(result.item_id)
         ):
-            return # La helper ya marcó el ítem como fatal.
+            return
 
-        # La parte más importante: el `item_refinado` en el resultado del LLM
-        # ya es un objeto ItemPayloadSchema validado.
-        # Simplemente lo asignamos de vuelta al payload del ítem.
+        # Asigna el nuevo payload corregido y ya validado por Pydantic.
         item.payload = result.item_refinado
 
         # Limpia los errores que el LLM reporta haber corregido.
@@ -77,5 +77,5 @@ class RefineItemLogicStage(LLMStage):
         if fixed_codes:
             clean_specific_errors(item, fixed_codes)
 
-        summary = f"Refinamiento lógico aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
+        summary = f"Refinamiento de contenido aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
         self._set_status(item, "success", summary, corrections=result.correcciones_realizadas)
