@@ -2,78 +2,116 @@
 
 from __future__ import annotations
 import logging
-from typing import List
-
-from ..registry import register
-from app.schemas.models import Item # Nuestro modelo de dominio
+from typing import List, Dict, Any # Added Dict, Any for robust type hints for ctx
+from app.schemas.models import Item, ItemStatus # Import ItemStatus enum
+from ..registry import register # Ensure register is imported
 from app.db import crud # Importa la capa CRUD
-from app.pipelines.abstractions import BaseStage # CRÍTICO: Importamos BaseStage
-
-# update_item_status_and_audit no se importa directamente aquí, lo usa _set_status de BaseStage
+from app.pipelines.abstractions import BaseStage # Importamos BaseStage
+from app.db.session import get_db # Import get_db to acquire session if needed
 
 logger = logging.getLogger(__name__)
 
 @register("persist")
-class PersistStage(BaseStage): # CRÍTICO: Convertido a clase que hereda de BaseStage
+class PersistStage(BaseStage):
     """
     Etapa final del pipeline que persiste el estado de todos los ítems
     en la base de datos utilizando la capa de servicio CRUD.
     """
 
     async def execute(self, items: List[Item]) -> List[Item]:
-        """
-        Punto de entrada principal de la etapa de persistencia.
-        Guarda los ítems que han sido finalizados con éxito.
-        """
         self.logger.info(f"Starting persistence stage for {len(items)} items.")
 
-        db_session = self.ctx.get("db") # Obtener la sesión de DB del contexto
+        # --- FIX: Correctly retrieve db_session from context OR acquire a new one ---
+        db_to_use = None
+        local_db_generator = None # To manage local session closure in finally block
 
-        if not db_session:
-            self.logger.error(f"Database session not found in context for {self.stage_name} stage. Skipping.")
-            for item in items:
-                # Si no hay sesión DB, marcamos como fallo de configuración
-                self._set_status(item, "fail.nodb_session", "Database session not found in context.")
-            return items
+        # 1. Try to get db_session from context
+        db_session_from_ctx = self.ctx.get("db_session")
 
+        if db_session_from_ctx:
+            try:
+                # Basic check to see if the session is likely still usable
+                db_session_from_ctx.connection()
+                db_to_use = db_session_from_ctx
+                self.logger.debug("Using database session from context for persist stage.")
+            except Exception as e:
+                self.logger.warning(f"Context DB session appears invalid for persist stage: {e}. Attempting to acquire a new session.")
+                # Fall through to acquire new session if context session is bad
+
+        # 2. If no usable session from context, acquire a new one
+        if db_to_use is None:
+            try:
+                local_db_generator = get_db()
+                db_to_use = next(local_db_generator)
+                self.logger.info("Acquired new database session locally for persist stage.")
+            except Exception as e:
+                self.logger.error(f"Failed to acquire database session for persist stage: {e}. Skipping persistence for all items.", exc_info=True)
+                # If cannot even get a new session, mark all items as FAIL for persistence
+                for item in items:
+                    # Use ItemStatus.FAIL for this scenario
+                    self._set_status(item, ItemStatus.FAIL, f"Persistencia fallida: Sesión de BD no disponible ({e}).")
+                return items # Exit if no DB session can be established
+
+        # At this point, db_to_use should be a valid session (or we would have exited)
         if not items:
             self.logger.info(f"No items to process in {self.stage_name} stage. Skipping.")
             return items
 
         self.logger.info(f"Attempting to persist {len(items)} items to the database...")
         try:
-            # La capa crud se encarga de la lógica de guardar y comitear.
-            crud.save_items(db=db_session, items=items)
+            # The crud layer typically handles saving all items in a list and committing.
+            # Ensure crud.save_items is designed for batch saving or call it per item with commit management.
+            # Assuming crud.save_items handles the transaction commit for the list.
+            crud.save_items(db=db_to_use, items=items) # Pass the items list
 
-            # Tras un commit exitoso, actualizamos el estado de cada ítem en memoria.
+            # After successful commit, update the status of each item in memory.
             for item in items:
-                # Determinar si el ítem ya tiene un finding fatal
-                has_fatal_finding_on_arrival = any(f.severity == "fatal" for f in item.findings)
+                # Determine if the item had a FATAL finding from prior stages
+                has_fatal_finding_on_arrival = item.status == ItemStatus.FATAL # Direct Enum comparison
 
                 if has_fatal_finding_on_arrival:
-                    # Si el ítem ya tenía un finding fatal antes de llegar aquí,
-                    # se ha persistido en su estado fatal.
+                    # If item was already FATAL, it was persisted in its FATAL state.
                     self._set_status(
                         item,
-                        "persisted_with_fatal_prior_error", # Nuevo outcome para auditoría
-                        "Item con errores fatales previos, guardado en base de datos en su estado actual."
+                        ItemStatus.FATAL, # Status remains FATAL
+                        "Item con errores fatales previos, guardado en base de datos en su estado actual (FATAL)."
                     )
-                elif not item.status.endswith((".fail", ".error")):
-                    # Si el ítem llegó sin errores terminales y se guardó con éxito.
-                    self._set_status(item, "success", "Item guardado exitosamente en la base de datos.")
+                # Check for other non-successful states that should not be marked as SUCCESS after persistence
+                elif item.status in [ItemStatus.PENDING, ItemStatus.SKIPPED, ItemStatus.FAIL, ItemStatus.SKIPPED_DUE_TO_FATAL_PRIOR]:
+                    # These items reached persist stage but were not SUCCESS.
+                    # Mark them as persisted with their prior non-SUCCESS status, or log specific outcome.
+                    # For simplicity, if not FATAL and not SUCCESS, it's a FAIL for final persistence outcome
+                    self._set_status(item, ItemStatus.FAIL, "Ítem no finalizado (con fallos previos), guardado en base de datos.")
                 else:
-                    # Si el ítem llegó con un error terminal no fatal (e.g., .fail, .error)
-                    # y no fue manejado por la lógica de fatal_finding_on_arrival
-                    self._set_status(item, "skipped_persist_with_prior_fail", "Ítem no finalizado; persistencia omitida/auditada.")
+                    # If the item arrived in a SUCCESS state or similar and was persisted.
+                    self._set_status(item, ItemStatus.SUCCESS, "Ítem guardado exitosamente en la base de datos.")
 
             self.logger.info(f"Successfully persisted {len(items)} items.")
 
         except Exception as e:
             self.logger.critical(f"A critical error occurred during the persistence stage: {e}", exc_info=True)
-            # Si la transacción falla, actualizamos el estado para reflejar el error.
+            # If the transaction fails, update item statuses to reflect the error.
             for item in items:
-                # Si no está ya en un fallo terminal, lo marcamos con el error de persistencia.
-                if not item.status.endswith((".fail", ".error")):
-                    self._set_status(item, "fail.dberror", f"Fallo al guardar ítem en la base de datos: {e}")
+                # If not already FATAL, mark with persistence error
+                if item.status not in [ItemStatus.FATAL, ItemStatus.FAIL, ItemStatus.SKIPPED, ItemStatus.SKIPPED_DUE_TO_FATAL_PRIOR]:
+                    self._set_status(item, ItemStatus.FATAL, f"Fallo crítico al guardar ítem en la base de datos: {e}")
+                else:
+                    # If already in a terminal state, just add an audit entry for persistence attempt failure
+                    add_audit_entry(
+                        item=item,
+                        stage_name=self.stage_name,
+                        status=item.status, # Keep original status
+                        summary=f"Intento de persistencia fallido debido a error crítico: {e}",
+                        corrections=[] # No corrections for persistence failure
+                    )
+
+        finally:
+            # Ensure local_db_generator is closed if it was opened locally within this stage
+            if local_db_generator:
+                try:
+                    local_db_generator.close()
+                    self.logger.debug("Closed local database session for persist stage.")
+                except RuntimeError:
+                    pass # Generator already closed or not started
 
         return items

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import asyncio
 
 from app.schemas.models import Item, ItemStatus
-from app.schemas.item_schemas import CorrectionSchema
+from app.schemas.item_schemas import CorrectionSchema, ReportEntrySchema # Ensure ReportEntrySchema is imported
 from app.pipelines.utils.stage_helpers import (
     update_item_status_and_audit,
     handle_missing_payload,
@@ -25,12 +25,15 @@ class BaseStage(ABC):
         self.params = params
         self.logger = logging.getLogger(f"app.pipelines.{self.stage_name}")
 
+    def _set_status(self, item: Item, status: ItemStatus, summary: str = "", correcciones: Optional[List[CorrectionSchema]] = None): # FIX: parameter name
+        # The 'status' argument is an ItemStatus Enum member.
+        # update_item_status_and_audit expects ItemStatus Enum for its 'status' parameter.
+        # FIX: Pass correcciones (Spanish) to update_item_status_and_audit
+        update_item_status_and_audit(item, self.stage_name, status, summary, correcciones=correcciones or [])
+
     @abstractmethod
     async def execute(self, items: List[Item]) -> List[Item]:
         raise NotImplementedError
-
-    def _set_status(self, item: Item, status: ItemStatus, summary: str = "", corrections: Optional[List[CorrectionSchema]] = None):
-        update_item_status_and_audit(item, self.stage_name, status, summary, corrections=corrections or [])
 
 class LLMStage(BaseStage):
     def __init__(self, stage_name: str, ctx: Dict[str, Any], params: Dict[str, Any]):
@@ -43,10 +46,26 @@ class LLMStage(BaseStage):
     async def execute(self, items: List[Item]) -> List[Item]:
         listen_status = self.params.get("listen_to_status_pattern")
         items_to_process = []
+
+        # Correctly filter items based on item.status (string value)
+        non_processing_statuses = [
+            ItemStatus.FATAL.value,
+            ItemStatus.FAIL.value,
+            ItemStatus.SKIPPED.value,
+            ItemStatus.SKIPPED_DUE_TO_FATAL_PRIOR.value
+        ]
+
         if listen_status:
-            items_to_process = [item for item in items if item.status.endswith(listen_status) and "fatal" not in item.status]
+            items_to_process = [
+                item for item in items
+                if item.status.endswith(listen_status) and
+                   item.status not in non_processing_statuses
+            ]
         else:
-            items_to_process = [item for item in items if "fail" not in item.status and "fatal" not in item.status]
+            items_to_process = [
+                item for item in items
+                if item.status not in non_processing_statuses
+            ]
 
         if items_to_process:
             tasks = [self._process_one_item(item) for item in items_to_process]
@@ -54,20 +73,19 @@ class LLMStage(BaseStage):
         return items
 
     async def _process_one_item(self, item: Item):
+        llm_errors: Optional[List[ReportEntrySchema]] = None
+
         if skip_if_terminal_error(item, self.stage_name):
             return
 
         if not item.payload and self.stage_name != 'generate_items':
-             handle_missing_payload(item, self.stage_name)
-             return
+            handle_missing_payload(item, self.stage_name)
+            return
 
         try:
             llm_input = self._prepare_llm_input(item)
             schema = self._get_expected_schema()
 
-            # --- INICIO DE LA CORRECCIÓN ---
-            # Se pasan los self.params (que contienen provider, model, etc. del pipeline.yml)
-            # como kwargs a la función de llamada al LLM.
             result, llm_errors, _ = await call_llm_and_parse_json_result(
                 prompt_name=self.prompt_name,
                 user_input_content=llm_input,
@@ -75,14 +93,16 @@ class LLMStage(BaseStage):
                 item=item,
                 ctx=self.ctx,
                 expected_schema=schema,
-                **self.params  # <-- ESTA ES LA LÍNEA CLAVE QUE CONECTA TODO
+                **self.params
             )
-            # --- FIN DE LA CORRECCIÓN ---
 
             if llm_errors:
                 error_summary = f"LLM utility failed: {llm_errors[0].message}"
-                llm_outcome = ItemStatus.FATAL if any(err.severity == "fatal" for err in ll_errors) else ItemStatus.FAIL
-                self._set_status(item, llm_outcome, error_summary)
+                if any(err.severity == "fatal" for err in llm_errors):
+                    llm_outcome_enum = ItemStatus.FATAL
+                else:
+                    llm_outcome_enum = ItemStatus.FAIL
+                self._set_status(item, llm_outcome_enum, error_summary)
             elif result:
                 await self._process_llm_result(item, result)
             else:

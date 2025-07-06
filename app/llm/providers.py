@@ -148,61 +148,94 @@ class GeminiClient(BaseLLMClient):
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
+        # Initialize the client as shown in README.md
+        # This client object will then expose .models (sync) and .aio (async)
         self.client = genai.Client(api_key=self.settings.google_api_key)
 
     async def _call(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]) -> Any:
-        system_instruction = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
-        gemini_contents = [msg["content"] for msg in messages if msg["role"] == "user"]
+        # Extract system instruction and user content separately
+        system_instruction_content = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
+
+        # Convert user messages to types.Part explicitly, as per README examples
+        user_parts = [types.Part(text=msg["content"]) for msg in messages if msg["role"] == "user"]
+
+        # Combine user parts into a single types.UserContent as per README.md examples
+        if user_parts:
+            gemini_contents = [types.UserContent(parts=user_parts)]
+        else:
+            gemini_contents = []
+
         model_name = kwargs.pop("model", self.settings.llm_model)
 
-        # --- INICIO DE LA CORRECCIÓN ---
-        # 1. Construir el diccionario de configuración con TODOS los parámetros de comportamiento.
         config_params = {
             "temperature": kwargs.pop("temperature", self.settings.llm_temperature),
             "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
-            "system_instruction": system_instruction
+            "system_instruction": system_instruction_content # Pass system_instruction here
         }
-        # Eliminar parámetros nulos para no enviarlos
         config_params = {k: v for k, v in config_params.items() if v is not None}
 
-        # 2. Construir el objeto GenerateContentConfig
         generation_config = types.GenerateContentConfig(**config_params)
 
-        # 3. Llamar al método generate_content del cliente, pasando la configuración
-        #    en el parámetro 'config'.
-        return await self.client.models.generate_content(
+        # Use self.client.aio.models.generate_content for asynchronous calls
+        return await self.client.aio.models.generate_content(
              model=model_name,
              contents=gemini_contents,
              config=generation_config,
-             **kwargs # Pasa el resto de kwargs (si los hubiera)
+             **kwargs
         )
-        # --- FIN DE LA CORRECCIÓN ---
 
     def _parse_response(self, res: Any, model_name: str) -> LLMResponse:
         text_content = ""
         prompt_tokens = 0
         completion_tokens = 0
         total_tokens = 0
+        success = True  # Default to success
+        error_message = None # Default to no error message
 
         try:
-            text_content = res.text
-            if not text_content and res.candidates:
-                text_content = res.candidates[0].content.parts[0].text
-        except (AttributeError, IndexError):
-            self.logger.warning("No se pudo extraer texto de la respuesta de Gemini.")
+            # First, try to get text directly from res.text as per README.md examples
+            if hasattr(res, 'text'):
+                text_content = res.text
 
+            # If res.text is empty, iterate through candidates and their parts to find text content.
+            # This handles cases where text might be in parts (e.g., multi-part responses)
+            if not text_content and hasattr(res, 'candidates') and res.candidates:
+                for candidate in res.candidates:
+                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                text_content = part.text
+                                break # Found text, exit inner loop
+                    if text_content:
+                        break # Found text, exit outer loop
+
+            # If after all attempts, text_content is still empty, mark as a failure
+            if not text_content:
+                success = False
+                error_message = "LLM response contained no usable text content or was blocked."
+                self.logger.warning(f"[_parse_response] {error_message}")
+
+        except Exception as e: # Catch any unexpected errors during text extraction
+            success = False
+            error_message = f"[_parse_response] Error extracting text from LLM response: {e}"
+            self.logger.error(error_message, exc_info=True)
+
+        # Extract usage metadata if available
         if hasattr(res, 'usage_metadata') and res.usage_metadata:
              total_tokens = getattr(res.usage_metadata, 'total_token_count', 0)
              prompt_tokens = getattr(res.usage_metadata, 'prompt_token_count', 0)
              completion_tokens = getattr(res.usage_metadata, 'candidates_token_count', 0)
 
+        # Return LLMResponse with appropriate success status and error message
         return LLMResponse(
             text=text_content,
             model=model_name,
             usage={"prompt": prompt_tokens, "completion": completion_tokens, "total": total_tokens},
             extra={},
-            success=True
+            success=success,
+            error_message=error_message
         )
+
 
 import ollama
 

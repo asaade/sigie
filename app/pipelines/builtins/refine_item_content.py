@@ -6,7 +6,7 @@ from typing import Type, Optional, List
 from pydantic import BaseModel
 
 from ..registry import register
-from app.schemas.models import Item
+from app.schemas.models import Item, ItemStatus
 from app.schemas.item_schemas import (
     RefinementResultSchema,
     ReportEntrySchema,
@@ -60,7 +60,7 @@ class RefineItemContentStage(LLMStage):
         """
         if not isinstance(result, RefinementResultSchema):
             msg = "Error interno: el esquema de la respuesta del LLM no es RefinementResultSchema."
-            self._set_status(item, "fatal", msg)
+            self._set_status(item, ItemStatus.FATAL, msg)
             return
 
         # Valida que el ID del ítem en la respuesta coincida.
@@ -78,4 +78,4 @@ class RefineItemContentStage(LLMStage):
             clean_specific_errors(item, fixed_codes)
 
         summary = f"Refinamiento de contenido aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
-        self._set_status(item, "success", summary, corrections=result.correcciones_realizadas)
+        self._set_status(item, ItemStatus.SUCCESS, summary, corrections=result.correcciones_realizadas)

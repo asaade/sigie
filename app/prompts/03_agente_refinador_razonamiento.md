@@ -9,13 +9,13 @@ NO modifiques el contenido pedagógico (la dificultad, el tema) ni el estilo. Tu
 Tu tarea es interpretar el código del error y aplicar la corrección correspondiente.
 
 * **Errores de Validación Dura (Códigos E0xx):**
-    * Suelen indicar problemas con la estructura JSON, tipos de datos incorrectos o campos obligatorios faltantes. Debes reconstruir o corregir el JSON para que sea válido.
+     * Suelen indicar problemas con la estructura JSON, tipos de datos incorrectos o campos obligatorios faltantes. Debes reconstruir o corregir el JSON para que sea válido.
 
 * **Errores de Validación Lógica (Códigos E1xx):**
-    * `E101-E105`: Refieren a inconsistencias entre la respuesta correcta y las opciones (ID incorrecto, múltiples correctas, etc.). Debes sincronizar estos campos para restaurar la coherencia.
+     * `E101-E105`: Refieren a inconsistencias entre la respuesta correcta y las opciones (ID incorrecto, múltiples correctas, etc.). Debes sincronizar estos campos para restaurar la coherencia.
 
 * **Advertencias de Validación Suave (Códigos W...):**
-    * Pueden sugerir mejoras formales (ej. longitud de las justificaciones, homogeneidad de opciones). Aplica la mejora sugerida en el mensaje del hallazgo.
+     * Pueden sugerir mejoras formales (ej. longitud de las justificaciones, homogeneidad de opciones). Aplica la mejora sugerida en el mensaje del hallazgo.
 
 ***
 # TAREA: Reparar Ítem
@@ -27,11 +27,14 @@ Responde solo con un objeto JSON.
   "item_id": "string (el mismo item_id del ítem original)",
   "item_refinado": {
     "item_id": "string",
-    "version": "7.1",
     "arquitectura": { "..."},
     "cuerpo_item": { "..."},
     "clave_y_diagnostico": { "..."},
-    "metadata_creacion": { "..."}
+    "metadata_creacion": {
+      "fecha_creacion": "string (AAAA-MM-DD)",
+      "agente_generador": "string",
+      "version": "string (ej. '7.1')"
+    }
   },
   "correcciones_realizadas": [
     {

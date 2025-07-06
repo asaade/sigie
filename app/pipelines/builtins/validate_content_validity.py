@@ -6,7 +6,7 @@ from typing import Type, Optional
 from pydantic import BaseModel
 
 from ..registry import register
-from app.schemas.models import Item
+from app.schemas.models import Item, ItemStatus
 from app.schemas.item_schemas import ValidationResultSchema
 from app.pipelines.abstractions import LLMStage
 from app.pipelines.utils.stage_helpers import (
@@ -46,14 +46,14 @@ class ValidateContentValidityStage(LLMStage):
         """
         if not isinstance(result, ValidationResultSchema):
             msg = "Error interno: el esquema de la respuesta del LLM no es ValidationResultSchema."
-            self._set_status(item, "fatal", msg)
+            self._set_status(item, ItemStatus.FATAL, msg)
             return
 
         if result.is_valid:
             summary = "Validación de contenido: OK."
-            self._set_status(item, "success", summary)
+            self._set_status(item, ItemStatus.SUCCESS, summary)
         else:
             # El ítem tiene fallos de contenido.
             summary = get_error_message_from_validation_result(result, "Contenido")
             item.findings.extend(result.findings)
-            self._set_status(item, "fail", summary)
+            self._set_status(item, ItemStatus.FAIL, summary)

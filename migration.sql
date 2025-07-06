@@ -1,5 +1,7 @@
 -- migration.sql
 
+DROP TABLE IF EXISTS items CASCADE;
+
 -- Habilitar la extensión para generación de UUIDs si no existe
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -9,12 +11,13 @@ CREATE TABLE IF NOT EXISTS items (
     temp_id UUID NOT NULL,
     status VARCHAR(255) NOT NULL,
     payload JSONB,
-    -- La lista unificada de hallazgos (errores y advertencias)
+    -- La columna 'findings' unificada, ya alineada
     findings JSONB NOT NULL DEFAULT '[]'::jsonb,
     audits JSONB NOT NULL DEFAULT '[]'::jsonb,
     prompt_v TEXT,
     token_usage INTEGER,
     final_evaluation JSONB NOT NULL DEFAULT '[]'::jsonb,
+    generation_params JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -72,18 +75,18 @@ CREATE INDEX IF NOT EXISTS idx_payload_tipo_reactivo ON items USING gin ((payloa
 -- Ejemplo
 
 -- SELECT
---     id,
---     status,
---     payload -> 'metadata' ->> 'area' AS area,
---     payload -> 'metadata' ->> 'asignatura' AS asignatura,
---     payload -> 'metadata' ->> 'nivel_destinatario' AS nivel_destinatario,
---     payload -> 'metadata' ->> 'tema' AS tema,
---     payload -> 'metadata' ->> 'nivel_cognitivo' AS nivel_cognitivo,
---     payload -> 'metadata' ->> 'dificultad_prevista' AS dificultad_prevista,
---     payload ->> 'tipo_reactivo' AS tipo_reactivo
+--      id,
+--      status,
+--      payload -> 'metadata' ->> 'area' AS area,
+--      payload -> 'metadata' ->> 'asignatura' AS asignatura,
+--      payload -> 'metadata' ->> 'nivel_destinatario' AS nivel_destinatario,
+--      payload -> 'metadata' ->> 'tema' AS tema,
+--      payload -> 'metadata' ->> 'nivel_cognitivo' AS nivel_cognitivo,
+--      payload -> 'metadata' ->> 'dificultad_prevista' AS dificultad_prevista,
+--      payload ->> 'tipo_reactivo' AS tipo_reactivo
 -- FROM
---     items
+--      items
 -- WHERE
---     (payload -> 'metadata' ->> 'area') = 'Ciencias' AND
---     (payload -> 'metadata' ->> 'asignatura') = 'Matemáticas' AND
---     (payload -> 'metadata' ->> 'nivel_destinatario') = 'Media superior';
+--      (payload -> 'metadata' ->> 'area') = 'Ciencias' AND
+--      (payload -> 'metadata' ->> 'asignatura') = 'Matemáticas' AND
+--      (payload -> 'metadata' ->> 'nivel_destinatario') = 'Media superior';

@@ -17,7 +17,7 @@ stages:
     # Esta etapa no usa LLM directamente, su lógica es programática.
 
   # 3. Ciclo de validación y refinamiento lógico
-  - name: validate_logic
+  - name: validate_item_logic
     params:
       prompt: "02_agent_razonamiento.md"
       provider: gemini

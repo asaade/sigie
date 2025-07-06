@@ -21,11 +21,14 @@ Responde solo con un objeto JSON.
   "item_id": "string (el mismo item_id del ítem original)",
   "item_refinado": {
     "item_id": "string",
-    "version": "7.1",
     "arquitectura": { "..."},
     "cuerpo_item": { "..."},
     "clave_y_diagnostico": { "..."},
-    "metadata_creacion": { "..."}
+    "metadata_creacion": {
+      "fecha_creacion": "string (AAAA-MM-DD)",
+      "agente_generador": "string",
+      "version": "string (ej. '7.1')"
+    }
   },
   "correcciones_realizadas": [
     {

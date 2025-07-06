@@ -7,8 +7,8 @@ No corrijas el ítem, solo analízalo con rigor, basándote en los siguientes cr
 1.  Precisión Conceptual (Código: E201): Toda la información en `cuerpo_item` y `clave_y_diagnostico` debe ser científicamente precisa, sin errores factuales.
 2.  Alineación Curricular (Código: E202): El ítem debe evaluar directamente el `tema` especificado en `arquitectura.dominio`, sin desviarse.
 3.  Alineación con Objetivo (Código: E203): La tarea mental exigida debe corresponder exactamente al `arquitectura.objetivo_aprendizaje`.
-4.  Pertinencia de Distractores (Código: E204): Los distractores deben ser pedagógicamente relevantes para el `objetivo_aprendizaje` y basarse en los `errores_comunes_mapeados`.
-5.  Unidimensionalidad (Código: E205): El ítem debe evaluar un solo `objetiv_aprendizaje`.
+4.  Pertinencia de Distractores (Código: E204): Los distractores (opciones plausibles, pero erróneas) deben ser pedagógicamente relevantes para el `objetivo_aprendizaje` y basarse en los `errores_comunes_mapeados`.
+5.  Unidimensionalidad (Código: E205): El ítem debe evaluar un solo `objetivo_aprendizaje`.
 
 ***
 # TAREA: Auditar Ítem

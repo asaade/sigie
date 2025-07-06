@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import List, Optional, Dict, Any
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, UUID4
 
 # Se importa ItemPayloadSchema aquí para que la clase Item la pueda usar.
 from app.schemas.item_schemas import ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema
@@ -16,6 +16,8 @@ class ItemStatus(Enum):
     SUCCESS = "success"
     FAIL = "fail"
     FATAL = "fatal"
+    SKIPPED = "skipped"
+    SKIPPED_DUE_TO_FATAL_PRIOR = "skipped_due_to_fatal_prior"
 
 
 class Item(BaseModel):
@@ -24,20 +26,20 @@ class Item(BaseModel):
     Este es el objeto principal que se pasa entre las etapas.
     """
     # Identificadores
-    temp_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    item_id: Optional[str] = None # ID persistente
+    temp_id: UUID4 = Field(default_factory=uuid.uuid4) # temp_id sigue siendo generado por la app
+    # FIX: item_id ahora es opcional y se asignará después de la persistencia en DB
+    item_id: Optional[UUID4] = None
     batch_id: Optional[str] = None
 
     # Estado y Auditoría
-    status: str = ItemStatus.PENDING.value # Usa el Enum para el valor por defecto
+    status: str = Field(default=ItemStatus.PENDING.value)
     findings: List[ReportEntrySchema] = []
     audits: List[AuditEntrySchema] = []
 
     # Datos
-    generation_params: Optional[Dict[str, Any]] = None # Parámetros que lo crearon
-    payload: Optional[ItemPayloadSchema] = None # El contenido del ítem en sí
+    generation_params: Optional[Dict[str, Any]] = None
+    payload: Optional[ItemPayloadSchema] = None
     token_usage: int = 0
 
     class Config:
-        # Permite que Pydantic maneje tipos complejos como los de SQLAlchemy.
         from_attributes = True

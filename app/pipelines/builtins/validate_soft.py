@@ -3,7 +3,7 @@ import logging
 from typing import List
 
 from app.schemas.item_schemas import ReportEntrySchema
-from app.schemas.models import Item
+from app.schemas.models import Item, ItemStatus
 from app.validators.soft import soft_validate # Importa la función de validación
 from app.pipelines.abstractions import BaseStage
 from app.pipelines.registry import register

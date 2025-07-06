@@ -39,7 +39,7 @@ class ArquitecturaSchema(BaseModel):
     objetivo_aprendizaje: str = Field(..., description="Verbo de Bloom + contenido. La directriz principal del ítem.")
     audiencia: AudienciaSchema
     formato: FormatoSchema
-    contexto: ContextoSchema
+    contexto: Optional[ContextoSchema] = None
 
 class OpcionCuerpoSchema(BaseModel):
     id: str
@@ -75,7 +75,8 @@ class FinalEvaluationSchema(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ItemPayloadSchema(BaseModel):
-    item_id: UUID4
+    # Hacer item_id opcional para que la base de datos lo genere.
+    item_id: Optional[UUID4] = None
     arquitectura: ArquitecturaSchema
     cuerpo_item: CuerpoItemSchema
     clave_y_diagnostico: ClaveDiagnosticoSchema
@@ -122,10 +123,10 @@ class RefinementResultSchema(BaseModel):
 
 class AuditEntrySchema(BaseModel):
     """
-    Schema para una entrada individual en el registro de auditoría de un ítem.
+    Esquema para una entrada individual en el registro de auditoría de un ítem.
     Describe qué etapa se ejecutó, cuándo y cuál fue el resultado.
     """
     stage: str
     timestamp: datetime
     summary: str
-    corrections: List[CorrectionSchema] = []
+    correcciones: List[CorrectionSchema] = []

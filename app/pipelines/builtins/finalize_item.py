@@ -6,7 +6,7 @@ from typing import Type, Optional
 from pydantic import BaseModel
 
 from ..registry import register
-from app.schemas.models import Item
+from app.schemas.models import Item, ItemStatus
 # Importar el nuevo schema que acabamos de definir
 from app.schemas.item_schemas import FinalEvaluationSchema
 from app.pipelines.abstractions import LLMStage
@@ -42,7 +42,7 @@ class FinalizeItemStage(LLMStage):
         """
         if not isinstance(result, FinalEvaluationSchema):
             msg = "Error interno: el esquema de respuesta del LLM no es FinalEvaluationSchema."
-            self._set_status(item, "fatal", msg)
+            self._set_status(item, ItemStatus.FATAL, msg)
             return
 
         # Asigna el resultado de la evaluación al nuevo campo en el payload.
@@ -51,4 +51,4 @@ class FinalizeItemStage(LLMStage):
 
         summary = f"Final evaluation completed. Score: {result.score}. Verdict: {'Publishable' if result.is_publishable else 'Not Publishable'}."
         # Marcamos como éxito, ya que la evaluación se completó.
-        self._set_status(item, "success", summary)
+        self._set_status(item, ItemStatus.SUCCESS, summary)
