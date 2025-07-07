@@ -1,48 +1,42 @@
-# app/main.py (VERIFICAR Y MANTENER)
-
-from __future__ import annotations
-
-import logging
-from pathlib import Path
-
+# app/main.py
 from fastapi import FastAPI
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.session import init_db # Asegúrate de que esta línea esté correcta
+# El simple acto de importar este módulo ejecutará la configuración de logging
+# (dictConfig) que está definida a nivel de módulo en log.py.
+from app.db.session import engine
+from app.db import models
 from app.api.items_router import router as items_router
+from app.core.config import settings
 
-# ───────────────────────────────────────────── logging
-# Es bueno centralizar la configuración de logging. Esta es una buena base.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-log = logging.getLogger("sigie.main") # Logger específico para main
+# --- IMPORTACIÓN CRUCIAL POR EFECTO SECUNDARIO ---
+# Esta importación asegura que todas las etapas del pipeline se registren
+# antes de que el runner intente usarlas.
+from app.pipelines import builtins
+
+# La configuración del logging ya se ha ejecutado al importar 'app.core.log'.
+# No se necesita ninguna llamada a setup_logging().
+
+# Create database tables
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="SIGIE – Generador de Ítems MCQ",
-    version="2025.06",
-    default_response_class=ORJSONResponse,
+    title=settings.PROJECT_NAME,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# Set all CORS enabled origins
+if settings.BACKEND_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-# ───────────────────────────────────────────── lifecycle
-@app.on_event("startup")
-async def on_startup() -> None:
-    init_db() # Inicializa la base de datos
-    pipeline_path = Path(__file__).parents[1] / "pipeline.yml"
-    log.info("🚀 Pipeline activo: %s", pipeline_path.resolve())
+app.include_router(items_router, prefix=settings.API_V1_STR)
 
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    log.info("👋  API apagándose…")
-
-# ───────────────────────────────────────────── routers
-app.include_router(items_router) # Se asegura de que el router de ítems esté incluido
-
-# ───────────────────────────────────────────── health
-@app.get("/health", tags=["meta"])
-async def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Item Generation API"}

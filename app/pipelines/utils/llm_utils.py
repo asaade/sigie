@@ -1,28 +1,18 @@
 # app/pipelines/utils/llm_utils.py
 
-import json
+from __future__ import annotations
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Type, Callable, Union
-from pydantic import BaseModel, ValidationError, TypeAdapter
+import json
+from typing import Tuple, List, Optional, Type, Any, Dict
+from pydantic import BaseModel, ValidationError
 
-from app.llm import generate_response, LLMResponse # Asumo que generate_response ahora es la función directamente importada
-from app.prompts import load_prompt
+from app.llm.providers import generate_response as generate_llm_response
+from app.schemas.item_schemas import FindingSchema
 from app.schemas.models import Item
-from app.schemas.item_schemas import ReportEntrySchema
-
-from ..utils.parsers import extract_json_block, build_prompt_messages # Mantengo build_prompt_messages por si se usa en otros sitios
+from app.prompts import load_prompt
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-
-MAX_ERROR_MESSAGE_LENGTH = 900 # Definido en la versión anterior, lo mantengo aquí por coherencia
-
-def _strip_json_markdown(text: str) -> str:
-    """Strips markdown code fences (```json\n...\n```) from a string."""
-    if text.startswith("```json"):
-        text = text[len("```json"):].strip()
-        if text.endswith("```"):
-            text = text[:-len("```")].strip()
-    return text
 
 async def call_llm_and_parse_json_result(
     prompt_name: str,
@@ -30,161 +20,74 @@ async def call_llm_and_parse_json_result(
     stage_name: str,
     item: Item,
     ctx: Dict[str, Any],
-    expected_schema: Optional[Type[BaseModel] | Type[List[Any]]] = None, # Tipo actualizado para listas
-    custom_parser_func: Optional[Callable[[str], Tuple[Any, List[ReportEntrySchema]]]] = None,
-    model: Optional[str] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    provider: Optional[str] = None, # provider es un argumento explícito aquí
-    top_k: Optional[int] = None,
-    top_p: Optional[float] = None,
-    stop_sequences: Optional[List[str]] = None,
-    seed: Optional[int] = None,
-    **kwargs: Any
-) -> Tuple[Optional[Any], List[ReportEntrySchema], Optional[str]]:
+    expected_schema: Optional[Type[BaseModel]] = None,
+    **kwargs,
+) -> Tuple[Optional[BaseModel | str], Optional[List[FindingSchema]], int]:
     """
-    Función central para llamar a los LLMs, obtener respuestas JSON y validarlas.
+    Prepara los prompts, llama al proveedor de LLM y parsea la respuesta JSON.
+    Ahora es robusto al manejar la carga del prompt.
     """
-    current_errors: List[ReportEntrySchema] = []
-    parsed_result: Optional[Any] = None
-    raw_llm_text: Optional[str] = None
-    response_metadata = {"stage": stage_name} # Se mantiene por si se usa
-
+    total_tokens_used = 0
     try:
+        # --- CORRECCIÓN DE LÓGICA DE PARSEO ---
         prompt_data = load_prompt(prompt_name)
-    except FileNotFoundError as e:
-        error_msg = f"Prompt '{prompt_name}' not found for stage '{stage_name}': {e}"
-        current_errors.append(
-            ReportEntrySchema(
-                code="PROMPT_NOT_FOUND",
-                message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
-                field="prompt_name",
-                severity="error"
-            )
-        )
-        logger.error(error_msg)
-        return None, current_errors, None
+        system_prompt = None
+        user_prompt_template = None
 
-    system_message = ""
-    user_prompt_template = ""
+        if isinstance(prompt_data, dict):
+            system_prompt = prompt_data.get("system_message")
+            user_prompt_template = prompt_data.get("content")
+        elif isinstance(prompt_data, str):
+            user_prompt_template = prompt_data
 
-    if isinstance(prompt_data, dict):
-        system_message = prompt_data.get("system_message", "")
-        # MODIFICACIÓN CRÍTICA: Corregido para usar 'content'
-        user_prompt_template = prompt_data.get("content", "{input}")
-    else:
-        # Si no hay separador, todo el contenido es la plantilla de usuario
-        user_prompt_template = str(prompt_data)
+        if not user_prompt_template:
+            raise ValueError(f"No se pudo cargar una plantilla de prompt válida desde '{prompt_name}'.")
 
-    # Asegurarse de que el user_input_content se inyecte en el placeholder
-    # Si la plantilla de usuario no tiene {input}, simplemente se añadirá al final.
-    formatted_user_prompt = user_prompt_template.replace("{input}", user_input_content)
+        # Se usa .replace() para inyectar el JSON de forma segura, evitando errores con llaves {}.
+        full_user_prompt = user_prompt_template.replace("{input}", user_input_content)
 
-    # MODIFICACIÓN CRÍTICA AQUÍ: Construir los mensajes correctamente para el LLM
-    messages = []
-    if system_message:
-        messages.append({"role": "system", "content": system_message})
-    messages.append({"role": "user", "content": formatted_user_prompt})
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": full_user_prompt})
 
+        provider_name = kwargs.pop("provider", settings.llm_provider)
+        model_name = kwargs.pop("model", settings.llm_model)
 
-    llm_call_params = {
-        "model": model,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "provider": provider, # Lo mantengo como argumento, según tu versión
-        "top_k": top_k,
-        "top_p": top_p,
-        "stop_sequences": stop_sequences,
-        "seed": seed,
-    }
-    llm_call_params = {k: v for k, v in llm_call_params.items() if v is not None}
-    llm_call_params.update(kwargs)
-
-    # Asumo que generate_response es de app.llm y usa el 'provider' de kwargs o del contexto
-    llm_provider_name = llm_call_params.pop("provider", ctx.get("llm_provider_name", "openai"))
-
-    try:
-        # Asegúrate de que generate_response en app.llm acepte 'provider' como parámetro
-        resp: LLMResponse = await generate_response(
+        llm_response = await generate_llm_response(
             messages=messages,
-            provider=llm_provider_name,
-            **llm_call_params
+            provider=provider_name,
+            model=model_name,
+            **kwargs,
         )
 
-        # response_metadata["model"] = resp.model # Asumo que resp tiene .model
-        # response_metadata["usage"] = resp.usage # Asumo que resp tiene .usage
-        if resp.usage:
-            item.token_usage = (item.token_usage or 0) + resp.usage.get("total", 0)
-            ctx["usage_tokens_total"] = ctx.get("usage_tokens_total", 0) + resp.usage.get("total", 0)
+        tokens_used = llm_response.usage.get("total", 0)
+        total_tokens_used += tokens_used
+        item.token_usage += tokens_used
 
+        if not llm_response.success:
+            error_msg = llm_response.error_message or "Error desconocido del proveedor LLM."
+            error = FindingSchema(codigo_error="E901_LLM_CALL_FAILED", campo_con_error="llm_response", descripcion_hallazgo=error_msg)
+            return None, [error], total_tokens_used
 
-        if not resp.success:
-            error_msg = f"LLM call failed for stage '{stage_name}': {resp.error_message}"
-            current_errors.append(
-                ReportEntrySchema(
-                    code="E905_LLM_CALL_FAILED", # Usando tu nuevo código de error
-                    message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
-                    field="llm_api_call",
-                    severity="error"
-                )
-            )
-            logger.error(error_msg)
-            return None, current_errors, resp.text # Retorna raw_llm_text
+        response_text = llm_response.text
+        if not response_text:
+            error = FindingSchema(codigo_error="E901_LLM_NO_RESPONSE", campo_con_error="llm_response", descripcion_hallazgo="El LLM no devolvió contenido de texto.")
+            return None, [error], total_tokens_used
 
-        raw_llm_text = resp.text
+        if expected_schema is None:
+            return response_text, None, total_tokens_used
 
-        if custom_parser_func:
-            parsed_result, parser_errors = custom_parser_func(raw_llm_text)
-            current_errors.extend(parser_errors)
-        else:
-            cleaned_response_text = _strip_json_markdown(raw_llm_text)
+        cleaned_json_str = response_text.strip().removeprefix("```json").removesuffix("```").strip()
+        validated_obj = expected_schema.model_validate_json(cleaned_json_str)
+        return validated_obj, None, total_tokens_used
 
-            if expected_schema is None:
-                # Si no se espera un esquema específico, devolver el texto limpio
-                return cleaned_response_text, current_errors, raw_llm_text # Retorna raw_llm_text
-
-            try:
-                # Intentar validar con TypeAdapter si es una lista, o directamente si es BaseModel
-                if hasattr(expected_schema, '__origin__') and expected_schema.__origin__ is list:
-                    parsed_result = TypeAdapter(expected_schema).validate_json(cleaned_response_text)
-                else:
-                    parsed_result = expected_schema.model_validate_json(cleaned_response_text)
-
-            except ValidationError as e:
-                error_msg = f"Error de validación/parseo del LLM: {e}. Respuesta recibida: {cleaned_response_text[:500]}..."
-                current_errors.append(
-                    ReportEntrySchema(
-                        code="E906_LLM_PARSE_VALIDATION_ERROR", # Usando tu nuevo código de error
-                        message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
-                        field="llm_response_json",
-                        severity="error"
-                    )
-                )
-                logger.error(error_msg)
-                return None, current_errors, raw_llm_text # Retorna raw_llm_text
-            except json.JSONDecodeError as e:
-                error_msg = f"Error de decodificación JSON para la etapa '{stage_name}': {e}. Raw: {cleaned_response_text[:200]}"
-                current_errors.append(
-                    ReportEntrySchema(
-                        code="E906_LLM_PARSE_VALIDATION_ERROR",
-                        message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
-                        field="llm_response_json",
-                        severity="error"
-                    )
-                )
-                logger.error(error_msg)
-                return None, current_errors, raw_llm_text
+    except (json.JSONDecodeError, ValidationError) as e:
+        error_msg = f"Error parseando o validando la respuesta del LLM: {e}. Respuesta: {response_text[:500]}..."
+        error = FindingSchema(codigo_error="E902_JSON_PARSE_VALIDATION_ERROR", campo_con_error="llm_response", descripcion_hallazgo=error_msg)
+        return None, [error], total_tokens_used
     except Exception as e:
-        error_msg = f"Error inesperado durante la llamada al LLM en la etapa '{stage_name}': {e}"
-        logger.error(error_msg, exc_info=True)
-        current_errors.append(
-            ReportEntrySchema(
-                code="E907_UNEXPECTED_LLM_PROCESSING_ERROR", # Usando tu nuevo código de error
-                message=error_msg[:MAX_ERROR_MESSAGE_LENGTH],
-                field="llm_response",
-                severity="fatal"
-            )
-        )
-        return None, current_errors, None
-
-    return parsed_result, current_errors, raw_llm_text
+        error_msg = f"Error inesperado en la utilidad LLM: {e}"
+        logger.error(f"[{stage_name}] Item {item.temp_id}: {error_msg}", exc_info=True)
+        error = FindingSchema(codigo_error="E999_UNEXPECTED_ERROR", campo_con_error="llm_call", descripcion_hallazgo=error_msg)
+        return None, [error], total_tokens_used

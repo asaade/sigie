@@ -1,46 +1,52 @@
-# Archivo actualizado: app/validators/__init__.py
+# app/validators/__init__.py
 
 import json
-from typing import List, Tuple
-from app.pipelines.utils.parsers import extract_json_block
-from app.schemas.item_schemas import ReportEntrySchema, ValidationResultSchema
+from typing import List, Tuple, Optional
 
-def parse_validation_report(text: str) -> Tuple[ValidationResultSchema, List[ReportEntrySchema]]:
+# Es buena práctica manejar el caso de que el parser no se encuentre.
+try:
+    from app.pipelines.utils.parsers import extract_json_block
+except ImportError:
+    def extract_json_block(text: str) -> str:
+        # Implementación de fallback si el parser no se encuentra
+        return text.strip().removeprefix("```json").removesuffix("```").strip()
+
+# --- IMPORT CORREGIDO ---
+# Se reemplaza la importación de la obsoleta 'ReportEntrySchema'
+# por la nueva y correcta 'FindingSchema'.
+from app.schemas.item_schemas import FindingSchema, ValidationResultSchema
+from .soft import validate_item_soft
+
+def parse_validation_report(text: str) -> Tuple[Optional[ValidationResultSchema], List[FindingSchema]]:
     """
-    Parsea la respuesta de CUALQUIER agente validador (lógica, políticas, etc.).
-    Devuelve:
-      - parsed_result: Objeto ValidationResultSchema.
-      - errors: Lista de ReportEntrySchema (solo si hay errores de parseo).
+    Parsea la respuesta de cualquier agente validador (lógica, políticas, etc.).
+    Devuelve un objeto ValidationResultSchema y una lista de errores de parseo.
     """
     clean_json_str = extract_json_block(text)
     try:
-        # Usamos el esquema genérico para validar el JSON.
-        # Este esquema espera las claves "is_valid" y "findings".
         report_data = ValidationResultSchema.model_validate_json(clean_json_str)
-        # Si la validación Pydantic es exitosa, no hay errores de parseo que reportar.
         return report_data, []
     except (json.JSONDecodeError, ValueError) as e:
-        # Si el JSON está mal formado o no se puede parsear.
         return None, [
-            ReportEntrySchema(
-                code="LLM_PARSE_ERROR",
-                message=f"Fallo al parsear la respuesta del LLM: {e}. Raw: {clean_json_str[:200]}...",
-                severity="error"
+            FindingSchema(
+                codigo_error="LLM_PARSE_ERROR",
+                campo_con_error="llm_response",
+                descripcion_hallazgo=f"Fallo al parsear la respuesta del LLM: {e}. Raw: {clean_json_str[:200]}..."
             )
         ]
     except Exception as e:
-        # Cualquier otro error inesperado durante el parseo.
         return None, [
-            ReportEntrySchema(
-                code="UNEXPECTED_PARSE_ERROR",
-                message=f"Error inesperado al parsear el reporte del LLM: {e}",
-                severity="error"
+            FindingSchema(
+                codigo_error="UNEXPECTED_PARSE_ERROR",
+                campo_con_error="llm_response",
+                descripcion_hallazgo=f"Error inesperado al parsear el reporte del LLM: {e}"
             )
         ]
 
-# Nota: Las funciones originales 'parse_logic_report' y 'parse_policy_report'
-# ahora pueden ser reemplazadas por esta única función genérica 'parse_validation_report'.
-# Deberás asegurar que las etapas que usaban un 'custom_parser_func' ahora
-# simplemente pasen 'expected_schema=ValidationResultSchema' a la utilidad 'call_llm_and_parse_json_result',
-# que ya maneja este parseo internamente sin necesidad de un parser customizado.
-# O, si prefieres mantener los parsers custom, asegúrate de que usen esta nueva lógica.
+# Puedes definir qué se exporta cuando alguien hace 'from app.validators import *'
+__all__ = [
+    "validate_item_soft",
+    "FindingSchema",
+    "ValidationResultSchema",
+    "parse_validation_report"
+]

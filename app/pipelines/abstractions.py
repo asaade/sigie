@@ -1,125 +1,94 @@
 # app/pipelines/abstractions.py
 
-import logging
+from __future__ import annotations
 from abc import ABC, abstractmethod
+import logging
+import asyncio
 from typing import List, Dict, Any, Type, Optional
 from pydantic import BaseModel
-import asyncio
 
 from app.schemas.models import Item, ItemStatus
-from app.schemas.item_schemas import CorrectionSchema, ReportEntrySchema # Ensure ReportEntrySchema is imported
-from app.pipelines.utils.stage_helpers import (
-    update_item_status_and_audit,
-    handle_missing_payload,
-    skip_if_terminal_error
-)
+from app.pipelines.utils.stage_helpers import add_revision_log_entry, handle_missing_payload
 from app.pipelines.utils.llm_utils import call_llm_and_parse_json_result
-from app.prompts import load_prompt
-
-logger = logging.getLogger(__name__)
 
 class BaseStage(ABC):
-    def __init__(self, stage_name: str, ctx: Dict[str, Any], params: Dict[str, Any]):
-        self.stage_name = stage_name
-        self.ctx = ctx
-        self.params = params
-        self.logger = logging.getLogger(f"app.pipelines.{self.stage_name}")
+    """Clase base abstracta para todas las etapas del pipeline."""
 
-    def _set_status(self, item: Item, status: ItemStatus, summary: str = "", correcciones: Optional[List[CorrectionSchema]] = None): # FIX: parameter name
-        # The 'status' argument is an ItemStatus Enum member.
-        # update_item_status_and_audit expects ItemStatus Enum for its 'status' parameter.
-        # FIX: Pass correcciones (Spanish) to update_item_status_and_audit
-        update_item_status_and_audit(item, self.stage_name, status, summary, correcciones=correcciones or [])
+    def __init__(self, stage_name: str, params: Dict[str, Any], ctx: Dict[str, Any]):
+        self.stage_name = stage_name
+        self.params = params
+        self.ctx = ctx
+        self.logger = logging.getLogger(f"app.pipelines.{self.stage_name}")
 
     @abstractmethod
     async def execute(self, items: List[Item]) -> List[Item]:
-        raise NotImplementedError
+        """
+        El método principal que procesa una lista de ítems.
+        Debe ser implementado por cada clase de etapa.
+        """
+        pass
 
 class LLMStage(BaseStage):
-    def __init__(self, stage_name: str, ctx: Dict[str, Any], params: Dict[str, Any]):
-        super().__init__(stage_name, ctx, params)
-        self.prompt_name = self.params.get("prompt")
-        if not self.prompt_name:
-            raise ValueError(f"La etapa '{self.stage_name}' requiere un 'prompt' en sus parámetros.")
-        load_prompt(self.prompt_name)
+    """
+    Clase base abstracta para etapas que interactúan con un LLM.
+    Encapsula la lógica común de preparación, llamada y procesamiento del LLM.
+    """
+    prompt_file: str = ""
+    pydantic_schema: Optional[Type[BaseModel]] = None
 
     async def execute(self, items: List[Item]) -> List[Item]:
-        listen_status = self.params.get("listen_to_status_pattern")
-        items_to_process = []
-
-        # Correctly filter items based on item.status (string value)
-        non_processing_statuses = [
-            ItemStatus.FATAL.value,
-            ItemStatus.FAIL.value,
-            ItemStatus.SKIPPED.value,
-            ItemStatus.SKIPPED_DUE_TO_FATAL_PRIOR.value
-        ]
-
-        if listen_status:
-            items_to_process = [
-                item for item in items
-                if item.status.endswith(listen_status) and
-                   item.status not in non_processing_statuses
-            ]
-        else:
-            items_to_process = [
-                item for item in items
-                if item.status not in non_processing_statuses
-            ]
-
-        if items_to_process:
-            tasks = [self._process_one_item(item) for item in items_to_process]
-            await asyncio.gather(*tasks)
+        """
+        Ejecución genérica para etapas LLM que procesan ítems uno por uno.
+        """
+        tasks = [self._process_single_item(item) for item in items]
+        await asyncio.gather(*tasks)
         return items
 
-    async def _process_one_item(self, item: Item):
-        llm_errors: Optional[List[ReportEntrySchema]] = None
-
-        if skip_if_terminal_error(item, self.stage_name):
+    async def _process_single_item(self, item: Item):
+        """Procesa un único ítem a través del flujo LLM."""
+        if item.status == ItemStatus.FATAL:
             return
 
-        if not item.payload and self.stage_name != 'generate_items':
-            handle_missing_payload(item, self.stage_name)
-            return
+        # La etapa 'generate_items' es la única que puede ejecutarse sin payload.
+        if self.stage_name != 'generate_items':
+            if handle_missing_payload(item, self.stage_name):
+                return
 
         try:
             llm_input = self._prepare_llm_input(item)
-            schema = self._get_expected_schema()
-
-            result, llm_errors, _ = await call_llm_and_parse_json_result(
-                prompt_name=self.prompt_name,
-                user_input_content=llm_input,
-                stage_name=self.stage_name,
-                item=item,
-                ctx=self.ctx,
-                expected_schema=schema,
-                **self.params
-            )
-
-            if llm_errors:
-                error_summary = f"LLM utility failed: {llm_errors[0].message}"
-                if any(err.severity == "fatal" for err in llm_errors):
-                    llm_outcome_enum = ItemStatus.FATAL
-                else:
-                    llm_outcome_enum = ItemStatus.FAIL
-                self._set_status(item, llm_outcome_enum, error_summary)
-            elif result:
-                await self._process_llm_result(item, result)
-            else:
-                summary = "LLM no devolvió un resultado válido o el parseo falló."
-                self._set_status(item, ItemStatus.FATAL, summary)
         except Exception as e:
-            self.logger.error(f"Error inesperado en la etapa {self.stage_name} para el ítem {item.temp_id}: {e}", exc_info=True)
-            self._set_status(item, ItemStatus.FATAL, str(e))
+            comment = f"Error al preparar el input para el LLM: {e}"
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)
+            return
 
-    @abstractmethod
-    def _get_expected_schema(self) -> Type[BaseModel]:
-        raise NotImplementedError
+        result_obj, llm_errors, _ = await call_llm_and_parse_json_result(
+            prompt_name=self.prompt_file,
+            user_input_content=llm_input,
+            stage_name=self.stage_name,
+            item=item,
+            ctx=self.ctx,
+            expected_schema=self.pydantic_schema,
+            **self.params,
+        )
+
+        if llm_errors:
+            # --- CORRECCIÓN DE BUG ---
+            # Se accede al campo correcto 'descripcion_hallazgo' en lugar del
+            # inexistente 'message'.
+            error_summary = f"Fallo en la utilidad LLM: {llm_errors[0].descripcion_hallazgo}"
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, error_summary)
+        elif result_obj:
+            await self._process_llm_result(item, result_obj)
+        else:
+            summary = "El LLM no devolvió un resultado válido ni errores específicos."
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, summary)
 
     @abstractmethod
     def _prepare_llm_input(self, item: Item) -> str:
-        raise NotImplementedError
+        """Prepara el input para el LLM. Debe ser implementado por la subclase."""
+        pass
 
     @abstractmethod
     async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
-        raise NotImplementedError
+        """Procesa el resultado parseado del LLM. Debe ser implementado por la subclase."""
+        pass

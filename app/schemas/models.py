@@ -1,45 +1,43 @@
 # app/schemas/models.py
-
 from __future__ import annotations
 import uuid
 from typing import List, Optional, Dict, Any
-from enum import Enum
-from pydantic import BaseModel, Field, UUID4
+from pydantic import BaseModel, Field
 
-# Se importa ItemPayloadSchema aquí para que la clase Item la pueda usar.
-from app.schemas.item_schemas import ItemPayloadSchema, ReportEntrySchema, AuditEntrySchema
-
-# Definimos el Enum 'ItemStatus' que faltaba.
-# Este Enum define los estados posibles que un ítem puede tener en el pipeline.
-class ItemStatus(Enum):
-    PENDING = "pending"
-    SUCCESS = "success"
-    FAIL = "fail"
-    FATAL = "fatal"
-    SKIPPED = "skipped"
-    SKIPPED_DUE_TO_FATAL_PRIOR = "skipped_due_to_fatal_prior"
-
+# Dependencias de otros módulos de schemas
+from .enums import ItemStatus
+from .item_schemas import ItemPayloadSchema, FindingSchema, RevisionLogEntry
 
 class Item(BaseModel):
     """
-    Representa un ítem y su estado completo a lo largo del pipeline.
-    Este es el objeto principal que se pasa entre las etapas.
+    El modelo Pydantic que representa el estado de un ítem a lo largo del pipeline.
+    Este es un objeto en memoria que se pasa entre etapas.
     """
-    # Identificadores
-    temp_id: UUID4 = Field(default_factory=uuid.uuid4) # temp_id sigue siendo generado por la app
-    # FIX: item_id ahora es opcional y se asignará después de la persistencia en DB
-    item_id: Optional[UUID4] = None
-    batch_id: Optional[str] = None
+    # --- Identificadores ---
+    item_id: Optional[uuid.UUID] = None  # El ID definitivo de la DB, se rellena al final.
+    temp_id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    batch_id: str
 
-    # Estado y Auditoría
-    status: str = Field(default=ItemStatus.PENDING.value)
-    findings: List[ReportEntrySchema] = []
-    audits: List[AuditEntrySchema] = []
-
-    # Datos
+    # --- Estado y Parámetros ---
+    status: ItemStatus = ItemStatus.PENDING
+    status_comment: Optional[str] = None
     generation_params: Optional[Dict[str, Any]] = None
-    payload: Optional[ItemPayloadSchema] = None
     token_usage: int = 0
 
+    # --- Contenido y Metadatos Generados ---
+    # Se usan Field(default_factory=list) para asegurar que siempre sean listas
+    # y evitar errores con valores None.
+    payload: Optional[ItemPayloadSchema] = None
+    findings: List[FindingSchema] = Field(default_factory=list)
+    audits: List[RevisionLogEntry] = Field(default_factory=list)
+
     class Config:
-        from_attributes = True
+        # Es una buena práctica para manejar tipos complejos como UUID.
+        arbitrary_types_allowed = True
+
+# --- SOLUCIÓN AL ERROR ---
+# Se llama a model_rebuild() para resolver las referencias de tipos (type hints)
+# que Pydantic no pudo resolver durante la inicialización.
+# Esto es necesario cuando los modelos están definidos en diferentes archivos
+# y se referencian entre sí.
+Item.model_rebuild()

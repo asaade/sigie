@@ -10,11 +10,10 @@ stages:
       provider: gemini
       model: "gemini-2.0-flash"
       temperature: 0.7
-      max_tokens: 3000
+      max_tokens: 4096
 
   # 2. Validación programática de reglas duras
   - name: validate_hard
-    # Esta etapa no usa LLM directamente, su lógica es programática.
 
   # 3. Ciclo de validación y refinamiento lógico
   - name: validate_item_logic
@@ -23,82 +22,75 @@ stages:
       provider: gemini
       model: gemini-2.0-flash
       temperature: 0.3
-      max_tokens: 1500
+      max_tokens: 2048
 
   - name: refine_item_logic
+    listen_to_status_pattern: "logic_validation.needs_revision"
     params:
       prompt: "03_agente_refinador_razonamiento.md"
       provider: gemini
       model: gemini-2.0-flash
       temperature: 0.5
-      max_tokens: 2500
-      listen_to_status_pattern: ".fail"
+      max_tokens: 4096
 
-  # XX. Ciclo de validación y REFINAMIENTO de contenido (PEDAGÓGICO/PSICOMÉTRICO)
+  # 4. Ciclo de validación y refinamiento de contenido
   - name: validate_content_validity
     params:
-      prompt: "XX_agent_content_validity.md" # Este es el prompt del validador de contenido que proporcionaste
+      prompt: "XX_agent_content_validity.md"
       provider: gemini
       model: gemini-2.0-flash
       temperature: 0.3
-      max_tokens: 2500
+      max_tokens: 2048
 
-  - name: refine_item_content # <--- NUEVA ETAPA: Refinador de Contenido
+  - name: refine_item_content
+    listen_to_status_pattern: "content_validation.needs_revision"
     params:
-      prompt: "03B_agente_refinador_contenido.md" # <--- EL NUEVO PROMPT DEFINIDO ARRIBA
+      prompt: "03B_agente_refinador_contenido.md"
       provider: gemini
       model: gemini-2.0-flash
-      temperature: 0.5 # Poca creatividad para corrección, más precisión
-      max_tokens: 2500
-      listen_to_status_pattern: ".fail" # Actúa sobre ítems fallidos de validate_content_validity
-      max_retries: 3 # <--- Opcional pero recomendado para evitar bucles infinitos (puedes ajustar el número)
+      temperature: 0.5
+      max_tokens: 4096
 
-  # 4. Ciclo de validación y refinamiento de políticas
+  # 5. Ciclo de validación y refinamiento de políticas
   - name: validate_policy
     params:
       prompt: "05_agent_politicas.md"
       provider: gemini
       model: gemini-2.0-flash
       temperature: 0.3
-      max_tokens: 1500
+      max_tokens: 2048
 
   - name: refine_item_policy
+    listen_to_status_pattern: "policy_validation.needs_revision"
     params:
       prompt: "06_agente_refinador_politicas.md"
       provider: gemini
       model: gemini-2.0-flash
       temperature: 0.5
-      max_tokens: 2500
-      listen_to_status_pattern: ".fail"
+      max_tokens: 4096
 
-  # 5. Validación programática de reglas suaves (advertencias)
+  # 6. Validación programática de reglas suaves (advertencias)
   - name: validate_soft
-    # Esta etapa no usa LLM directamente, su lógica es programática.
-    # Solo emite warnings, no cambia el estado a .fail si no hay errores previos.
 
-  # 6. Etapa de corrección de estilo directa
+  # 7. Etapa de corrección de estilo directa
   - name: refine_item_style
     params:
       prompt: "04_agente_refinador_estilo.md"
       provider: gemini
-      model: "gemini-2.0-flash" # Asegúrate de que el modelo sea compatible con el proveedor
+      model: "gemini-2.0-flash"
       temperature: 0.6
-      max_tokens: 2000
-      # Esta etapa actuará sobre ítems que hayan pasado las etapas anteriores
-      # (no estén en fatal_error o fail/error, y contengan warnings de validate_soft para actuar sobre ellos).
-      # Al no tener un listen_to_status_pattern específico, procesará todos
-      # los ítems que no estén en estado fatal/error.
-      # No hay bucle aquí, ya que el estilo es una mejora final, no una validación crítica.
+      # --- CORRECCIÓN ---
+      # Aumentamos el límite para evitar que la respuesta JSON se corte.
+      max_tokens: 8192
 
-  # 7. Etapa de evaluación final por un LLM
+  # 8. Etapa de evaluación final por un LLM
   - name: finalize_item
     params:
       prompt: "07_agent_final.md"
       provider: gemini
       model: "gemini-2.0-flash"
       temperature: 0.2
-      max_tokens: 2000
+      max_tokens: 2048
 
-  # 8. Persistencia final en la base de datos
+  # 9. Persistencia final en la base de datos
   - name: persist
-    # No usa LLM, su lógica es programática.

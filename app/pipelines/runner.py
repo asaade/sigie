@@ -1,134 +1,94 @@
 # app/pipelines/runner.py
 
-from __future__ import annotations
-import os
 import yaml
-import logging
-from pathlib import Path
+from typing import List, Dict, Any, Optional
 
-from typing import List, Dict, Any, Tuple
-from app.core.config import Settings
-from app.db.session import get_db
-from app.schemas.models import Item, ItemStatus # Ensure ItemStatus is imported
-from app.schemas.item_schemas import ItemGenerationParams
-from app.pipelines.registry import get as get_stage_from_registry
-from app.pipelines.utils.stage_helpers import initialize_items_for_pipeline, add_audit_entry
-
-
-logger = logging.getLogger(__name__)
-settings = Settings()
-
-def _chunks(lst: List[Any], n: int) -> List[List[Any]]:
-    """Divide *lst* en *n* chunks casi iguales."""
-    k, m = divmod(len(lst), n)
-    return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n) if lst]
+from app.schemas.models import Item, ItemStatus
+from app.core.log import logger
+from app.pipelines.abstractions import BaseStage
+from app.pipelines.utils.stage_helpers import initialize_items_for_pipeline
+from app.pipelines.registry import get_full_registry
 
 async def run(
-    pipeline_config_path: str | dict[str, Any],
-    user_params: ItemGenerationParams,
-    *,
-    ctx: Dict[str, Any] | None = None,
-) -> Tuple[List[Item], Dict[str, Any]]:
+    pipeline_config_path: str,
+    user_params: Optional[Dict[str, Any]] = None,
+    items_to_process: Optional[List[Item]] = None,
+    ctx: Optional[Dict[str, Any]] = None,
+):
+    """
+    Orquesta la ejecución de un pipeline definido en un archivo YAML.
+    Recibe el registro de etapas como una dependencia inyectada.
+    """
+    stage_registry = get_full_registry()
 
-    if isinstance(pipeline_config_path, (str, bytes, bytearray, os.PathLike, Path)):
-        with open(pipeline_config_path, 'r', encoding='utf-8') as fp:
-            config_dict = yaml.safe_load(fp)
-    else:
-        config_dict = pipeline_config_path
-
-
-    stages_cfg = config_dict.get('stages', [])
-    if not stages_cfg:
-        raise ValueError('Pipeline config without stages')
-
-    ctx = ctx or {}
-    ctx.setdefault('usage_tokens_total', 0)
-    ctx['user_params'] = user_params.model_dump()
-
-    db_generator = get_db()
-    ctx['db_session'] = next(db_generator)
-
-    items: List[Item] = initialize_items_for_pipeline(user_params)
-    if not items:
-        logger.warning("Pipeline will not execute: No items initialized based on user parameters.")
-        if 'db_session' in ctx and db_generator:
-            try:
-                db_generator.close()
-            except RuntimeError:
-                pass
-        return [], ctx
+    if ctx is None:
+        ctx = {}
 
     try:
-        for stage_config in stages_cfg:
-            stage_name = stage_config.get("name")
-            params = stage_config.get("params", {})
+        with open(pipeline_config_path, "r") as f:
+            config = yaml.safe_load(f)
+        pipeline_stages_config = config.get("stages", [])
+        logger.info(f"Pipeline config loaded from '{pipeline_config_path}'. Found {len(pipeline_stages_config)} stages.")
+    except FileNotFoundError:
+        logger.error(f"Archivo de configuración del pipeline no encontrado en: {pipeline_config_path}")
+        return
+    except yaml.YAMLError as e:
+        logger.error(f"Error al parsear el archivo de configuración del pipeline: {e}")
+        return
 
-            if not stage_name:
-                logger.warning("Found a stage in pipeline.yml without a 'name'. Skipping.")
-                continue
+    if not items_to_process:
+        if not user_params:
+            logger.error("Se debe proporcionar 'user_params' o 'items_to_process' para ejecutar el pipeline.")
+            return
+        items = initialize_items_for_pipeline(user_params)
+    else:
+        items = items_to_process
 
-            try:
-                StageClass = get_stage_from_registry(stage_name)
-            except KeyError:
-                logger.error(f"Stage '{stage_name}' is defined in pipeline.yml but not found in registry. Marking all current items as fatal_error.")
-                for item in items:
-                    if item.status != ItemStatus.FATAL.value: # Compare string to string
-                        add_audit_entry(
-                            item=item,
-                            stage_name=stage_name,
-                            status=ItemStatus.FATAL,
-                            summary=f"Error de configuración: Etapa '{stage_name}' no encontrada en el registro."
-                        )
-                return items, ctx
+    if not items:
+        logger.warning("No hay ítems para procesar en el pipeline.")
+        return
 
-            stage_instance = StageClass(stage_name, ctx, params)
+    logger.info(f"--- Starting Pipeline Run for {len(items)} items ---")
 
-            logger.info(f"Executing stage: '{stage_name}'. Items to process: {len(items)}.")
+    for stage_config in pipeline_stages_config:
+        stage_name = stage_config.get("name")
+        stage_params = stage_config.get("params", {})
+        listen_to_status = stage_config.get("listen_to_status_pattern")
 
-            try:
-                updated_items = await stage_instance.execute(items)
-                items = updated_items
+        if not stage_name:
+            logger.warning("Configuración de etapa sin nombre, omitiendo.")
+            continue
 
-                # --- FIX: Compare item.status (string) to ItemStatus.SUCCESS.value (string) ---
-                if stage_name == 'generate_items' and not any(item.status == ItemStatus.SUCCESS.value for item in items):
-                    logger.critical(f"PIPELINE HALTED: '{stage_name}' stage failed to produce any successful items. The pipeline cannot continue.")
-                    for item in items:
-                        if item.status != ItemStatus.SUCCESS.value and item.status != ItemStatus.FATAL.value:
-                            add_audit_entry(
-                                item=item,
-                                stage_name=stage_name,
-                                status=ItemStatus.FATAL,
-                                summary="Etapa de generación no produjo ítems con éxito o hubo un problema crítico."
-                            )
-                    return items, ctx
+        try:
+            stage_class = stage_registry.get(stage_name)
+            if not stage_class:
+                raise KeyError(f"Stage '{stage_name}' not found in the provided registry.")
 
-                # Check for overall pipeline health after each stage (e.g., if all items are fatal)
-                if all(item.status == ItemStatus.FATAL.value for item in items):
-                    logger.critical("PIPELINE HALTED: All items in the batch are in a FATAL state. The pipeline cannot continue.")
-                    return items, ctx
-                # --- END FIX ---
+            stage_instance: BaseStage = stage_class(stage_name, stage_params, ctx)
+        except KeyError as e:
+            logger.error(f"Error: {e}")
+            continue
 
-            except Exception as e:
-                logger.critical(
-                    f"A critical error occurred during execution of stage '{stage_name}': {e}",
-                    exc_info=True,
-                )
-                for item in items:
-                    if item.status != ItemStatus.SUCCESS.value and item.status != ItemStatus.FATAL.value:
-                        add_audit_entry(
-                            item=item,
-                            stage_name=stage_name,
-                            status=ItemStatus.FATAL,
-                            summary=f"Fallo catastrófico en la etapa '{stage_name}': {str(e)}"
-                        )
-                return items, ctx
+        # Filtra los ítems según el patrón de estado.
+        items_for_stage = [item for item in items if item.status != ItemStatus.FATAL]
+        if listen_to_status:
+            items_for_stage = [
+                item for item in items_for_stage if item.status.value.startswith(listen_to_status)
+            ]
 
-        logger.info("Pipeline finished successfully.")
-        return items, ctx
+        if not items_for_stage:
+            logger.info(f"Omitiendo etapa '{stage_name}': no hay ítems que procesar con el patrón '{listen_to_status}'.")
+            continue
 
-    finally:
-        if 'db_session' in ctx and db_generator:
-            try:
-                db_generator.close()
-            except RuntimeError:
-                pass
+        logger.info(f"Executing stage: '{stage_name}'. Items to process: {len(items_for_stage)}.")
+
+        try:
+            # Las etapas modifican los objetos Item en su lugar.
+            await stage_instance.execute(items_for_stage)
+        except Exception as e:
+            logger.error(f"Error inesperado durante la ejecución de la etapa '{stage_name}': {e}", exc_info=True)
+            for item in items_for_stage:
+                item.status = ItemStatus.FATAL
+                item.status_comment = f"Error no manejado en la etapa {stage_name}: {e}"
+
+    logger.info("--- Pipeline finished successfully ---")

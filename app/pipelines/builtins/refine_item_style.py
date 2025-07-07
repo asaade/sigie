@@ -2,60 +2,62 @@
 
 from __future__ import annotations
 import json
-from typing import Type, Optional
+from typing import Optional
+
 from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item, ItemStatus
-from app.schemas.item_schemas import (
-    RefinementResultSchema,
-)
+from app.schemas.item_schemas import RefinementResultSchema
 from app.pipelines.abstractions import LLMStage
-from app.pipelines.utils.stage_helpers import handle_item_id_mismatch_refinement
+from app.pipelines.utils.stage_helpers import (
+    add_revision_log_entry,
+    handle_item_id_mismatch,
+)
 
 @register("refine_item_style")
 class RefineItemStyleStage(LLMStage):
     """
-    Etapa de refinamiento que mejora el estilo, redacción y claridad de un ítem.
+    Etapa de refinamiento final que mejora el estilo, redacción y claridad de un ítem.
+    Esta etapa no depende de hallazgos previos; siempre se ejecuta para pulir el ítem.
     """
 
-    def _get_expected_schema(self) -> Type[BaseModel]:
-        """Define el esquema de la respuesta esperada del LLM."""
-        return RefinementResultSchema
+    # Define el prompt y el esquema Pydantic para la clase base LLMStage
+    prompt_file = "04_agente_refinador_estilo.md"
+    pydantic_schema = RefinementResultSchema
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
         Prepara el input JSON para el LLM.
-        Envía el ítem original para revisión de estilo.
+        Envía el ítem original para una revisión y mejora de estilo.
         """
         if not item.payload:
+            # La clase base LLMStage ya maneja este caso marcando el ítem como FATAL.
             return json.dumps({"error": "Item payload is missing."})
 
-        item_payload_dict = item.payload.model_dump(mode="json")
-
+        # Preparamos un objeto que contiene tanto el ítem como su ID temporal.
         input_payload = {
-            "item_original": item_payload_dict
+            "temp_id": str(item.temp_id),
+            "item_a_mejorar": item.payload.model_dump(mode="json"),
         }
-        return json.dumps(input_payload, indent=2, ensure_ascii=False)
+        return json.dumps(input_payload, ensure_ascii=False)
 
     async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
         """
         Procesa el resultado del LLM, actualizando el ítem con las mejoras de estilo.
         """
-        if not isinstance(result, RefinementResultSchema):
-            msg = "Error interno: el esquema de respuesta del LLM no es RefinementResultSchema."
-            self._set_status(item, ItemStatus.FATAL, msg)
+        if not result or not isinstance(result, RefinementResultSchema):
+            comment = f"No se recibió una estructura de refinamiento válida del LLM. Se recibió: {type(result).__name__}."
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)
             return
 
-        # Valida que el ID del ítem en la respuesta coincida con el original.
-        if handle_item_id_mismatch_refinement(
-            item, self.stage_name, str(item.item_id), str(result.item_id)
-        ):
+        # Verificación de consistencia del temp_id.
+        if handle_item_id_mismatch(item, self.stage_name, str(item.temp_id), str(result.temp_id)):
             return
 
         # Asigna el nuevo payload con el estilo corregido.
         item.payload = result.item_refinado
 
         num_correcciones = len(result.correcciones_realizadas)
-        summary = f"Refinamiento de estilo aplicado. {num_correcciones} correcciones reportadas."
-        self._set_status(item, ItemStatus.SUCCESS, summary, correcciones=result.correcciones_realizadas)
+        comment = f"Refinamiento de estilo aplicado. {num_correcciones} mejoras reportadas."
+        add_revision_log_entry(item, self.stage_name, ItemStatus.STYLE_REFINEMENT_SUCCESS, comment)

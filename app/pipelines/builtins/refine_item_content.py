@@ -2,80 +2,69 @@
 
 from __future__ import annotations
 import json
-from typing import Type, Optional, List
+from typing import Optional
+
 from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item, ItemStatus
-from app.schemas.item_schemas import (
-    RefinementResultSchema,
-    ReportEntrySchema,
-)
+from app.schemas.item_schemas import RefinementResultSchema
 from app.pipelines.abstractions import LLMStage
 from app.pipelines.utils.stage_helpers import (
-    clean_specific_errors,
-    handle_item_id_mismatch_refinement,
+    add_revision_log_entry,
+    handle_item_id_mismatch,
 )
 
 @register("refine_item_content")
 class RefineItemContentStage(LLMStage):
     """
     Etapa de refinamiento que corrige un ítem basándose en hallazgos
-    de validez de contenido. Compatible con la nueva arquitectura de payload.
+    de validez de contenido (ej. errores E2xx).
     """
-
-    def _get_expected_schema(self) -> Type[BaseModel]:
-        """Espera recibir un payload de ítem refinado del LLM."""
-        return RefinementResultSchema
+    prompt_file = "03B_agente_refinador_contenido.md"
+    pydantic_schema = RefinementResultSchema
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
         Prepara el string de input para el LLM.
-        Incluye el ítem original (con la nueva estructura) y los hallazgos a corregir.
+        Incluye el ítem original y los hallazgos de contenido a corregir.
         """
-        if not item.payload or not item.findings:
-            return json.dumps({"error": "Item payload or findings are missing."})
+        if not item.payload:
+            return json.dumps({"error": "Item payload is missing."})
 
-        # Serializa el payload del ítem con la nueva estructura anidada.
-        item_payload_dict = item.payload.model_dump(mode="json")
+        # --- REFACTORIZACIÓN ---
+        # Se accede directamente a item.findings, que ahora es un campo oficial.
+        relevant_findings = [f for f in item.findings if f.codigo_error.startswith('E2')]
 
-        # Filtra solo los hallazgos de contenido (ej. errores 'E2xx').
-        relevant_problems: List[ReportEntrySchema] = [
-            f for f in item.findings if f.code.startswith('E2')
-        ]
+        if not relevant_findings:
+             raise ValueError("Refine stage was run, but no relevant content findings (E2xx) were found on the Item.")
 
         input_payload = {
-            "item_original": item_payload_dict,
-            "feedback_validacion_contenido": {
-                "is_valid": False, # Siempre será False si esta etapa se activa
-                "findings": [p.model_dump(mode="json") for p in relevant_problems]
-            }
+            "temp_id": str(item.temp_id),
+            "item_original": item.payload.model_dump(mode="json"),
+            "hallazgos_a_corregir": [p.model_dump(mode="json") for p in relevant_findings]
         }
-        return json.dumps(input_payload, indent=2, ensure_ascii=False)
+        return json.dumps(input_payload, ensure_ascii=False)
 
     async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
         """
         Procesa el resultado, reemplazando el payload del ítem con la
-        versión corregida y validada por el LLM.
+        versión corregida y actualizando el estado.
         """
-        if not isinstance(result, RefinementResultSchema):
-            msg = "Error interno: el esquema de la respuesta del LLM no es RefinementResultSchema."
-            self._set_status(item, ItemStatus.FATAL, msg)
+        if not result or not isinstance(result, RefinementResultSchema):
+            comment = f"No se recibió una estructura de refinamiento válida del LLM. Se recibió: {type(result).__name__}."
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)
             return
 
-        # Valida que el ID del ítem en la respuesta coincida.
-        if handle_item_id_mismatch_refinement(
-            item, self.stage_name, str(item.payload.item_id), str(result.item_id)
-        ):
+        if handle_item_id_mismatch(item, self.stage_name, str(item.temp_id), str(result.temp_id)):
             return
 
-        # Asigna el nuevo payload corregido y ya validado por Pydantic.
         item.payload = result.item_refinado
 
-        # Limpia los errores que el LLM reporta haber corregido.
-        fixed_codes = {correction.error_code for correction in result.correcciones_realizadas}
-        if fixed_codes:
-            clean_specific_errors(item, fixed_codes)
+        # --- REFACTORIZACIÓN ---
+        # Se accede directamente a item.findings para limpiarlo.
+        fixed_codes = {correction.codigo_error for correction in result.correcciones_realizadas}
+        item.findings = [f for f in item.findings if f.codigo_error not in fixed_codes]
 
-        summary = f"Refinamiento de contenido aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
-        self._set_status(item, ItemStatus.SUCCESS, summary, corrections=result.correcciones_realizadas)
+        comment = f"Refinamiento de contenido aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
+        add_revision_log_entry(item, self.stage_name, ItemStatus.CONTENT_REFINEMENT_SUCCESS, comment)

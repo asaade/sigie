@@ -39,7 +39,7 @@ def build_prompt_messages(
         user_content_payload_str = payload
     else:
         # Asegurarse de que el payload JSON se formatee bien para el prompt
-        user_content_payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
+        user_content_payload_str = json.dumps(payload, ensure_ascii=False)
 
     # MODIFICADO: Claramente separar las instrucciones del prompt de los parámetros de entrada.
     # Esto ayuda al LLM a diferenciar entre las instrucciones de su tarea y los datos de entrada.
