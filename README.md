@@ -47,7 +47,9 @@ Este proyecto está diseñado para ser una herramienta robusta y flexible para i
 Para generar tu primer ítem, puedes usar el siguiente comando curl.
 
 1. **Crea un archivo payload.json:**
-   {
+
+```json
+{
        "n\_items": 1,
        "dominio": {
            "area": "Ciencias Exactas",
@@ -61,6 +63,7 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
        },
        "nivel\_cognitivo": "Aplicar"
    }
+```
 
 2. **Envía la solicitud a la API:**
    curl \-X POST "http://localhost:8000/api/v1/items/generate" \\
@@ -71,7 +74,8 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
 
 ## **📂 Estructura del Proyecto**
 
-.
+
+```ascii
 ├── app/
 │   ├── api/          \# Endpoints de FastAPI y routers
 │   ├── core/         \# Configuración, catálogos de errores
@@ -88,6 +92,7 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
 ├── tests/            \# Pruebas unitarias y de integración
 ├── pipeline.yml      \# Archivo de configuración principal de la pipeline
 └── ...
+```
 
 ## **🛠️ Configuración y Personalización**
 
