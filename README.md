@@ -14,7 +14,7 @@ Este proyecto está diseñado para ser una herramienta robusta y flexible para i
 * **Soporte para Contenido Gráfico:** Capacidad para generar y procesar ítems que incluyen recursos gráficos como tablas (Markdown), fórmulas matemáticas (LaTeX) y prompts para la generación de imágenes (SVG, etc.).
 * **Configuración Declarativa:** El flujo de trabajo y el comportamiento de los agentes de IA se definen en archivos de configuración (.yml) y prompts (.md), permitiendo ajustes rápidos sin modificar el código fuente.
 * **API Asíncrona:** Expone una API RESTful (basada en FastAPI) que maneja las solicitudes de generación de forma asíncrona, permitiendo procesar grandes lotes de ítems sin bloquear al cliente.
-* **Validación Rigurosa:** Incluye múltiples capas de validación, tanto programáticas (validate\_hard, validate\_soft) como basadas en IA, para garantizar la calidad y coherencia de cada ítem.
+* **Validación Rigurosa:** Incluye múltiples capas de validación, tanto programáticas (validate_hard, validate_soft) como basadas en IA, para garantizar la calidad y coherencia de cada ítem.
 
 ## **🚀 Inicio Rápido (Getting Started)**
 
@@ -27,18 +27,37 @@ Este proyecto está diseñado para ser una herramienta robusta y flexible para i
 ### **Instalación y Ejecución**
 
 1. **Clona el repositorio:**
-   git clone \[URL-DEL-REPOSITORIO\]
-   cd \[NOMBRE-DEL-DIRECTORIO\]
+   git clone [URL-DEL-REPOSITORIO]
+   cd [NOMBRE-DEL-DIRECTORIO]
 
 2. Configura las variables de entorno:
    Crea un archivo .env en la raíz del proyecto y añade tus claves de API y la configuración de la base de datos. Basado en env.example:
-   \# Ejemplo de .env
-   DATABASE\_URL="postgresql://user:password@db:5432/sigie\_db"
-   GOOGLE\_API\_KEY="tu\_api\_key\_de\_google\_aqui"
-   \# ... otras variables
+
+   # Ejemplo de .env
+   DATABASE_URL="postgresql://user:password@db:5432/sigie_db"
+   GOOGLE_API_KEY="tu_api_key_de_google_aqui"
+
+   # --- Configuración del Proveedor LLM por defecto ---
+   LLM_PROVIDER="gemini" # "openai", "gemini"
+   LLM_MODEL="gemini-2.0-flash"  # Modelo a usar por defecto para el proveedor seleccionado
+
+   # --- Control de Calidad / Resiliencia LLM ---
+   LLM_MAX_RETRIES=3
+   LLM_REQUEST_TIMEOUT=60.0
+
+   # --- Generación (si usas modelos que soportan estos parámetros) ---
+   LLM_MAX_TOKENS=3500
+   PROMPT_VERSION="2025-07-01"
+
+   # --- Configuración de la Base de Datos ---
+   POSTGRES_USER=xxxxx
+   POSTGRES_PASSWORD=xxxxx
+   POSTGRES_DB=reactivos_db
+
+   # ... otras variables
 
 3. **Levanta los servicios con Docker:**
-   docker-compose up \--build
+   docker-compose up --build
 
    Esto iniciará la aplicación FastAPI, la base de datos PostgreSQL y cualquier otro servicio necesario. La API estará disponible en http://localhost:8000.
 
@@ -50,25 +69,25 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
 
 ```json
 {
-       "n\_items": 1,
+       "n_items": 1,
        "dominio": {
            "area": "Ciencias Exactas",
            "asignatura": "Física",
            "tema": "Leyes de Newton"
        },
-       "objetivo\_aprendizaje": "Aplicar la Segunda Ley de Newton (F=ma) para calcular la aceleración de un objeto con masa y fuerza conocidas.",
+       "objetivo_aprendizaje": "Aplicar la Segunda Ley de Newton (F=ma) para calcular la aceleración de un objeto con masa y fuerza conocidas.",
        "audiencia": {
-           "nivel\_educativo": "Bachillerato (1er año)",
-           "dificultad\_esperada": "media"
+           "nivel_educativo": "Bachillerato (1er año)",
+           "dificultad_esperada": "media"
        },
-       "nivel\_cognitivo": "Aplicar"
+       "nivel_cognitivo": "Aplicar"
    }
 ```
 
 2. **Envía la solicitud a la API:**
-   curl \-X POST "http://localhost:8000/api/v1/items/generate" \\
-   \-H "Content-Type: application/json" \\
-   \--data-binary "@payload.json"
+   curl -X POST "http://localhost:8000/api/v1/items/generate"
+   -H "Content-Type: application/json"
+   --data-binary "@payload.json"
 
 3. **Recibirás una respuesta 202 Accepted** confirmando que el proceso ha comenzado en segundo plano.
 
@@ -77,20 +96,20 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
 
 ```ascii
 ├── app/
-│   ├── api/          \# Endpoints de FastAPI y routers
-│   ├── core/         \# Configuración, catálogos de errores
-│   ├── db/           \# Modelos SQLAlchemy, sesión de DB, CRUD
-│   ├── llm/          \# Clientes de proveedores de LLM (Gemini, OpenAI)
+│   ├── api/                # Endpoints de FastAPI y routers
+│   ├── core/               # Configuración, catálogos de errores
+│   ├── db/                 # Modelos SQLAlchemy, sesión de DB, CRUD
+│   ├── llm/                # Clientes de proveedores de LLM (Gemini, OpenAI)
 │   ├── pipelines/
-│   │   ├── builtins/ \# Implementaciones de cada etapa (Python)
-│   │   ├── utils/    \# Funciones de ayuda para la pipeline
-│   │   ├── abstractions.py \# Clases base (BaseStage, LLMStage)
-│   │   ├── registry.py     \# Registro de etapas
-│   │   └── runner.py       \# Orquestador de la pipeline
-│   ├── prompts/      \# Archivos .md con los prompts de cada agente
-│   └── schemas/      \# Modelos Pydantic para validación de datos
-├── tests/            \# Pruebas unitarias y de integración
-├── pipeline.yml      \# Archivo de configuración principal de la pipeline
+│   │   ├── builtins/       # Implementaciones de cada etapa (Python)
+│   │   ├── utils/          # Funciones de ayuda para la pipeline
+│   │   ├── abstractions.py # Clases base (BaseStage, LLMStage)
+│   │   ├── registry.py     # Registro de etapas
+│   │   └── runner.py       # Orquestador de la pipeline
+    │   ├── prompts/        # Archivos .md con los prompts de cada agente
+│   └── schemas/            # Modelos Pydantic para validación de datos
+├── tests/                  # Pruebas unitarias y de integración
+├── pipeline.yml            # Archivo de configuración principal de la pipeline
 └── ...
 ```
 
@@ -99,4 +118,4 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
 * **Para cambiar el flujo de generación:** Modifica el archivo pipeline.yml. Puedes reordenar, añadir o eliminar etapas para crear diferentes flujos de trabajo.
 * **Para cambiar el comportamiento de la IA:** Edita los archivos .md correspondientes en el directorio app/prompts/. Cada archivo controla un agente de IA específico.
 
-¡Gracias por usar SIGIE\!
+¡Gracias por usar SIGIE!
