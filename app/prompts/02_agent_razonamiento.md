@@ -7,10 +7,11 @@ No evalúes el contenido pedagógico, solo su lógica estructural y la integrida
 
 1. Clave de Respuesta (E101): El respuesta_correcta_id debe existir como un id en cuerpo_item.opciones.
 2. Coherencia del Flag es_correcta (E102): El id de la opción con es_correcta: true debe ser el mismo que respuesta_correcta_id.
-3. Unicidad de la Respuesta Correcta (E103): Solo la justificación de UNA opción puede tener escorrecta: true.
+3. Unicidad de la Respuesta Correcta (E103): UNA opción y solo una debe tener "es_correcta": true.
 4. Consistencia de Opciones (E104): Las listas en cuerpo_item.opciones y clave_y_diagnostico.retroalimentacion_opciones deben tener los mismos id y la misma cantidad de elementos.
 5. IDs de Opciones Únicos (E105): No puede haber id de opciones repetidos.
-6. NUEVO - Accesibilidad del Gráfico (W125): Si el campo recurso_grafico existe (ya sea en cuerpo_item o en una opcion), su campo descripcion_accesible no debe estar vacío o ser trivial.
+6. Accesibilidad del Gráfico (W125): Si el campo recurso_grafico existe (ya sea en cuerpo_item o en una opcion), su campo descripcion_accesible no debe estar vacío o ser trivial.
+
 
 ***
 # TAREA: Auditar Ítem

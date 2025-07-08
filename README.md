@@ -37,24 +37,24 @@ Este proyecto está diseñado para ser una herramienta robusta y flexible para i
    DATABASE_URL="postgresql://user:password@db:5432/sigie_db"
    GOOGLE_API_KEY="tu_api_key_de_google_aqui"
 
-   # --- Configuración del Proveedor LLM por defecto ---
+   --- Configuración del Proveedor LLM por defecto ---
    LLM_PROVIDER="gemini" # "openai", "gemini"
    LLM_MODEL="gemini-2.0-flash"  # Modelo a usar por defecto para el proveedor seleccionado
 
-   # --- Control de Calidad / Resiliencia LLM ---
+   --- Control de Calidad / Resiliencia LLM ---
    LLM_MAX_RETRIES=3
    LLM_REQUEST_TIMEOUT=60.0
 
-   # --- Generación (si usas modelos que soportan estos parámetros) ---
+   --- Generación (si usas modelos que soportan estos parámetros) ---
    LLM_MAX_TOKENS=3500
    PROMPT_VERSION="2025-07-01"
 
-   # --- Configuración de la Base de Datos ---
+   --- Configuración de la Base de Datos ---
    POSTGRES_USER=xxxxx
    POSTGRES_PASSWORD=xxxxx
    POSTGRES_DB=reactivos_db
 
-   # ... otras variables
+   ... otras variables
 
 3. **Levanta los servicios con Docker:**
    docker-compose up --build
@@ -68,7 +68,7 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
 1. **Crea un archivo payload.json:**
 
 ```json
-{
+    {
        "n_items": 1,
        "dominio": {
            "area": "Ciencias Exactas",
@@ -81,7 +81,7 @@ Para generar tu primer ítem, puedes usar el siguiente comando curl.
            "dificultad_esperada": "media"
        },
        "nivel_cognitivo": "Aplicar"
-   }
+    }
 ```
 
 2. **Envía la solicitud a la API:**
