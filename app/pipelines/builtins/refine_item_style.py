@@ -58,6 +58,11 @@ class RefineItemStyleStage(LLMStage):
         # Asigna el nuevo payload con el estilo corregido.
         item.payload = result.item_refinado
 
+        # 1. Se persiste el historial de cambios de estilo en el log.
+        if result.correcciones_realizadas:
+            item.change_log.extend(result.correcciones_realizadas)
+
+        # 2. Se actualiza el comentario del log para reflejar el registro.
         num_correcciones = len(result.correcciones_realizadas)
-        comment = f"Refinamiento de estilo aplicado. {num_correcciones} mejoras reportadas."
+        comment = f"Refinamiento de estilo aplicado. {num_correcciones} mejoras registradas en el change_log."
         add_revision_log_entry(item, self.stage_name, ItemStatus.STYLE_REFINEMENT_SUCCESS, comment)

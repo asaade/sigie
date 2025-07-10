@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 # Dependencias de otros módulos de schemas
 from .enums import ItemStatus
-from .item_schemas import ItemPayloadSchema, FindingSchema, RevisionLogEntry
+from .item_schemas import ItemPayloadSchema, FindingSchema, RevisionLogEntry, CorrectionSchema
 
 class Item(BaseModel):
     """
@@ -30,6 +30,7 @@ class Item(BaseModel):
     payload: Optional[ItemPayloadSchema] = None
     findings: List[FindingSchema] = Field(default_factory=list)
     audits: List[RevisionLogEntry] = Field(default_factory=list)
+    change_log: List[CorrectionSchema] = Field(default_factory=list)
 
     class Config:
         # Es una buena práctica para manejar tipos complejos como UUID.

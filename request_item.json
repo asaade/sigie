@@ -1,14 +1,14 @@
 {
-    "n_items": 1,
+    "n_items": 2,
     "dominio": {
-        "area": "Ciencias de la Salud",
-        "asignatura": "Medicina Interna",
-        "tema": "Diabetes Mellitus"
+        "area": "Ciencias Sociales y Jurídicas",
+        "asignatura": "Derecho Penal",
+        "tema": "Teoría del Delito"
     },
-    "objetivo_aprendizaje": "Evaluar los resultados de una prueba de tolerancia a la glucosa oral para diagnosticar a un paciente según los criterios de la ADA.",
+    "objetivo_aprendizaje": "Analizar un caso hipotético para distinguir entre dolo directo y dolo eventual en la comisión de un delito de lesiones.",
     "audiencia": {
-        "nivel_educativo": "Examen Nacional de Aspirantes a Residencias Médicas",
+        "nivel_educativo": "Egreso de Licenciatura en Derecho",
         "dificultad_esperada": "alta"
     },
-    "nivel_cognitivo": "Evaluar"
+    "nivel_cognitivo": "Analizar"
 }

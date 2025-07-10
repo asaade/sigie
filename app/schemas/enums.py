@@ -8,6 +8,7 @@ class ItemStatus(str, Enum):
     Al estar en su propio archivo, rompe las dependencias circulares.
     """
     PENDING = "pending"
+    REQUEST_VALIDATION_SUCCESS = "request_success"
     GENERATION_SUCCESS = "generation_success"
     LOGIC_VALIDATION_SUCCESS = "logic_validation_success"
     LOGIC_VALIDATION_NEEDS_REVISION = "logic_validation_needs_revision"

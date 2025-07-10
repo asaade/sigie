@@ -61,10 +61,15 @@ class RefineItemContentStage(LLMStage):
 
         item.payload = result.item_refinado
 
-        # --- REFACTORIZACIÓN ---
-        # Se accede directamente a item.findings para limpiarlo.
+        # 1. Se persiste el historial detallado de cambios en el nuevo log.
+        if result.correcciones_realizadas:
+            item.change_log.extend(result.correcciones_realizadas)
+
+        # 2. Se limpian los hallazgos que ya fueron corregidos.
         fixed_codes = {correction.codigo_error for correction in result.correcciones_realizadas}
         item.findings = [f for f in item.findings if f.codigo_error not in fixed_codes]
 
-        comment = f"Refinamiento de contenido aplicado. {len(result.correcciones_realizadas)} correcciones realizadas."
+        # 3. Se actualiza el comentario para ser más informativo.
+        num_corrections = len(result.correcciones_realizadas)
+        comment = f"Refinamiento de contenido aplicado. {num_corrections} correcciones registradas en el change_log."
         add_revision_log_entry(item, self.stage_name, ItemStatus.CONTENT_REFINEMENT_SUCCESS, comment)

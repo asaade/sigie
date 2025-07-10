@@ -26,6 +26,7 @@ def save_items(db: Session, items: List[pydantic_models.Item]) -> List[db_models
         # NO se usa json.dumps(). SQLAlchemy se encargará de la serialización.
         findings_data = [f.model_dump(mode="json") for f in item_pydantic.findings] if item_pydantic.findings else []
         audits_data = [a.model_dump(mode="json") for a in item_pydantic.audits] if item_pydantic.audits else []
+        change_log_data = [cl.model_dump(mode="json") for cl in item_pydantic.change_log] if item_pydantic.change_log else []
         generation_params_data = item_pydantic.generation_params if item_pydantic.generation_params is not None else {}
         payload_data = item_pydantic.payload.model_dump(mode="json") if item_pydantic.payload else None
         final_evaluation_data = (
@@ -41,12 +42,14 @@ def save_items(db: Session, items: List[pydantic_models.Item]) -> List[db_models
             # --- ACTUALIZAR ÍTEM EXISTENTE ---
             logger.debug(f"Updating existing item with ID: {item_id_uuid}")
             db_item.temp_id = temp_id_uuid
+            db_item.batch_id = item_pydantic.batch_id
             db_item.status = item_pydantic.status.value # Usar .value para el enum
             db_item.token_usage = item_pydantic.token_usage
             db_item.payload = payload_data
             db_item.final_evaluation = final_evaluation_data
             db_item.findings = findings_data
             db_item.audits = audits_data
+            db_item.change_log = change_log_data
             db_item.generation_params = generation_params_data
         else:
             # --- CREAR NUEVO ÍTEM ---
@@ -54,12 +57,14 @@ def save_items(db: Session, items: List[pydantic_models.Item]) -> List[db_models
             db_item = db_models.ItemModel(
                 # El 'id' será generado por la DB
                 temp_id=temp_id_uuid,
+                batch_id=item_pydantic.batch_id,
                 status=item_pydantic.status.value, # Usar .value para el enum
                 token_usage=item_pydantic.token_usage,
                 payload=payload_data,
                 final_evaluation=final_evaluation_data,
                 findings=findings_data,
                 audits=audits_data,
+                change_log=change_log_data,
                 generation_params=generation_params_data,
             )
             db.add(db_item)
@@ -84,3 +89,23 @@ def save_items(db: Session, items: List[pydantic_models.Item]) -> List[db_models
         logger.error(f"Failed to save items to the database. Rolling back transaction. Error: {e}", exc_info=True)
         db.rollback()
         raise
+
+
+def get_item(db: Session, item_id: uuid.UUID) -> Optional[db_models.ItemModel]:
+    """
+    Obtiene un único ítem de la base de datos por su ID principal.
+    """
+    logger.debug(f"Querying for item with ID: {item_id}")
+    return db.query(db_models.ItemModel).filter(db_models.ItemModel.id == item_id).first()
+
+def get_items(db: Session, skip: int = 0, limit: int = 100) -> List[db_models.ItemModel]:
+    """
+    Obtiene una lista de ítems de la base de datos con paginación.
+    """
+    logger.debug(f"Querying for items with skip: {skip}, limit: {limit}")
+    return db.query(db_models.ItemModel).offset(skip).limit(limit).all()
+
+def get_items_by_batch_id(db: Session, batch_id: str) -> List[db_models.ItemModel]:
+    """Obtiene todos los ítems asociados con un batch_id específico."""
+    logger.debug(f"Querying for items with batch_id: {batch_id}")
+    return db.query(db_models.ItemModel).filter(db_models.ItemModel.batch_id == batch_id).all()

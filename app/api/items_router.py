@@ -6,10 +6,12 @@ from typing import List
 import uuid
 
 from app.schemas.item_schemas import (
-    ItemGenerationParams,
+    BatchStatusResultSchema,
     GenerationResultSchema,
+    ItemGenerationParams,
     ItemPayloadSchema,
 )
+from app.schemas.enums import ItemStatus
 from app.schemas.models import Item
 from app.pipelines.runner import run as run_pipeline_async
 from app.pipelines.utils.stage_helpers import initialize_items_for_pipeline
@@ -91,6 +93,40 @@ def get_item(item_id: str, db: Session = Depends(get_db)):
     # El payload ya es un diccionario/JSON, Pydantic/FastAPI lo validará
     # contra el response_model ItemPayloadSchema.
     return db_item.payload
+
+
+@router.get("/items/batch/{batch_id}", response_model=BatchStatusResultSchema)
+def get_batch_status(batch_id: str, db: Session = Depends(get_db)):
+    """
+    Obtiene el estado de un lote de generación de ítems.
+    Permite al usuario sondear el resultado de su solicitud asíncrona.
+    """
+    logger.info(f"Fetching status for batch_id: {batch_id}")
+    db_items = crud.get_items_by_batch_id(db, batch_id)
+
+    if not db_items:
+        raise HTTPException(status_code=404, detail="Batch ID not found.")
+
+    total_items = len(db_items)
+    processed_items = sum(1 for item in db_items if item.status != ItemStatus.PENDING.value)
+    successful_items = sum(1 for item in db_items if item.status == ItemStatus.PERSISTENCE_SUCCESS.value)
+    failed_items = sum(1 for item in db_items if item.status == ItemStatus.FATAL.value)
+    is_complete = processed_items == total_items
+
+    results = [
+        {"item_id": item.id, "temp_id": item.temp_id, "status": item.status}
+        for item in db_items
+    ]
+
+    return BatchStatusResultSchema(
+        batch_id=batch_id,
+        is_complete=is_complete,
+        total_items=total_items,
+        processed_items=processed_items,
+        successful_items=successful_items,
+        failed_items=failed_items,
+        results=results,
+    )
 
 
 @router.get("/items", response_model=List[dict])

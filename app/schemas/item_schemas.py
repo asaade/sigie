@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, UUID4
 
 # Se importa ItemStatus desde su archivo dedicado para evitar ciclos.
 from .enums import ItemStatus
-
+import uuid
 
 # --- Esquemas para Parámetros y Resultados de la API ---
 # (Estos no cambian)
@@ -124,8 +124,6 @@ class ItemPayloadSchema(BaseModel):
 
 
 # --- Esquemas de Soporte (Hallazgos, Correcciones, etc.) ---
-# (Estos no cambian, pero se listan para completitud)
-
 
 class FindingSchema(BaseModel):
     codigo_error: str
@@ -144,13 +142,14 @@ class CorrectionSchema(BaseModel):
     campo_con_error: str
     descripcion_correccion: str
 
-
 class RevisionLogEntry(BaseModel):
+    """
+    Representa una entrada en el historial de auditoría de un ítem.
+    """
+    timestamp: datetime
     stage_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
     status: ItemStatus
-    comment: str
-
+    comment: Optional[str] = None
 
 class ScoreBreakdownSchema(BaseModel):
     psychometric_content_score: int
@@ -181,3 +180,19 @@ class RefinementResultSchema(BaseModel):
     # Ahora se espera que el refinador devuelva el payload con la nueva estructura unificada.
     item_refinado: ItemPayloadSchema
     correcciones_realizadas: List[CorrectionSchema]
+
+class ItemResultSchema(BaseModel):
+    """Esquema para el resultado de un solo ítem dentro de un lote."""
+    item_id: uuid.UUID
+    temp_id: uuid.UUID
+    status: str
+
+class BatchStatusResultSchema(BaseModel):
+    """Esquema para la respuesta del estado de un lote."""
+    batch_id: str
+    is_complete: bool
+    total_items: int
+    processed_items: int
+    successful_items: int
+    failed_items: int
+    results: List[ItemResultSchema]
