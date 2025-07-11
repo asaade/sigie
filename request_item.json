@@ -1,14 +1,17 @@
 {
-    "n_items": 2,
-    "dominio": {
-        "area": "Ciencias Sociales y Jurídicas",
-        "asignatura": "Derecho Penal",
-        "tema": "Teoría del Delito"
-    },
-    "objetivo_aprendizaje": "Analizar un caso hipotético para distinguir entre dolo directo y dolo eventual en la comisión de un delito de lesiones.",
-    "audiencia": {
-        "nivel_educativo": "Egreso de Licenciatura en Derecho",
-        "dificultad_esperada": "alta"
-    },
-    "nivel_cognitivo": "Analizar"
+  "n_items": 2,
+  "dominio": {
+    "area": "Ciencias de la Salud",
+    "asignatura": "Medicina General",
+    "tema": "Prevención y Detección Oportuna de Cáncer de Mama"
+  },
+  "objetivo_aprendizaje": "Aplicar las guías de práctica clínica vigentes en México para el tamizaje de cáncer de mama en un caso clínico con factores de riesgo específicos.",
+  "audiencia": {
+    "nivel_educativo": "Licenciatura (egreso de Medicina)",
+    "dificultad_esperada": "media-alta"
+  },
+  "nivel_cognitivo": "Aplicar",
+  "formato": {
+    "tipo_reactivo": "cuestionamiento_directo"
+  }
 }

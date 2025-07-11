@@ -54,8 +54,6 @@ class ValidateContentValidityStage(LLMStage):
             comment = "Validación de contenido: OK."
             add_revision_log_entry(item, self.stage_name, ItemStatus.CONTENT_VALIDATION_SUCCESS, comment)
         else:
-            # --- REFACTORIZACIÓN ---
-            # Se utiliza el método directo y seguro para extender la lista de hallazgos.
             item.findings.extend(result.hallazgos)
 
             summary = get_error_message_from_validation_result(result, "Contenido")

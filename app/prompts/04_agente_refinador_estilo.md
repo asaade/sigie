@@ -58,19 +58,51 @@ Aplica las siguientes reglas para refinar los textos y recursos.
 Recibirás una lista de hallazgos con códigos de error. Úsalos como una guía y punto de atención para tu revisión.
 
 ### 4. FORMATO DE SALIDA OBLIGATORIO
-Responde únicamente con un objeto JSON. Documenta cada mejora en la lista `correcciones_realizadas`.
+
+Tu respuesta debe ser únicamente un objeto JSON.
+
+Instrucción Crítica para Construir `item_refinado`:
+Para crear el objeto `item_refinado`, sigue este proceso:
+
+1.  Toma el `item_original` completo que recibiste como input.
+2.  Copia todos sus campos y valores de manera exacta a un nuevo objeto.
+3.  Finalmente, sobrescribe únicamente los valores de los campos de texto que hayas modificado con tus mejoras de estilo.
+
+Los campos que no tocaste (como `dominio`, `audiencia`, `metadata_creacion`, etc.) deben permanecer idénticos a los del `item_original`.
+
+Plantilla de Respuesta:
 
 ```json
 {
   "temp_id": "string (el mismo temp_id del ítem original)",
   "item_refinado": {
-    // ... (estructura completa del ítem ya refinado estilísticamente) ...
+    "version": "1.0",
+    "dominio": { ... },
+    "objetivo_aprendizaje": "...",
+    "audiencia": { ... },
+    "formato": { ... },
+    "contexto": null,
+    "cuerpo_item": {
+      "estimulo": "Texto del estímulo, posiblemente refinado por ti.",
+      "enunciado_pregunta": "Texto del enunciado, posiblemente refinado por ti.",
+      "opciones": [ ... ],
+      "recurso_grafico": { ... }
+    },
+    "clave_y_diagnostico": {
+      "respuesta_correcta_id": "...",
+      "errores_comunes_mapeados": [ ... ],
+      "retroalimentacion_opciones": [
+        { "id": "a", "es_correcta": false, "justificacion": "Justificación de la opción a, posiblemente refinada por ti." },
+        // ...etc.
+      ]
+    },
+    "metadata_creacion": { ... } // <-- Este campo y otros deben ser copiados exactamente.
   },
   "correcciones_realizadas": [
     {
-      "codigo_error": "string (ej. W114_OPTION_NO_PERIOD)",
-      "campo_con_error": "string (ej. cuerpo_item.opciones)",
-      "descripcion_correccion": "string (Descripción de la corrección realizada)"
+      "codigo_error": "string",
+      "campo_con_error": "string",
+      "descripcion_correccion": "string"
     }
   ]
 }

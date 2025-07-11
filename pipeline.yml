@@ -14,7 +14,7 @@ stages:
   - name: generate_items
     params:
       prompt: "01_agent_dominio.md"
-      model: "gemini-2.0-flash"
+      model: "gemini-2.5-pro"
       temperature: 0.7
 
   # 3. Validación estructural programática
@@ -25,16 +25,16 @@ stages:
     params:
       prompt: "XX_agent_content_validity.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.5-pro
       temperature: 0.3
-      max_tokens: 2048
+      max_tokens: 4096
 
   - name: refine_item_content
     listen_to_status_pattern: "content_validation.needs_revision"
     params:
       prompt: "03B_agente_refinador_contenido.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.5-pro
       temperature: 0.5
       max_tokens: 4096
 
@@ -43,16 +43,16 @@ stages:
     params:
       prompt: "02_agent_razonamiento.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.0-flash-lite
       temperature: 0.3
-      max_tokens: 2048
+      max_tokens: 4096
 
   - name: refine_item_logic
     listen_to_status_pattern: "logic_validation.needs_revision"
     params:
       prompt: "03_agente_refinador_razonamiento.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.0-flash-lite
       temperature: 0.5
       max_tokens: 4096
 
@@ -61,16 +61,16 @@ stages:
     params:
       prompt: "05_agent_politicas.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.0-flash-lite
       temperature: 0.3
-      max_tokens: 2048
+      max_tokens: 4096
 
   - name: refine_item_policy
     listen_to_status_pattern: "policy_validation.needs_revision"
     params:
       prompt: "06_agente_refinador_politicas.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.0-flash-lite
       temperature: 0.5
       max_tokens: 4096
 
@@ -82,7 +82,7 @@ stages:
     params:
       prompt: "04_agente_refinador_estilo.md"
       provider: gemini
-      model: "gemini-2.0-flash"
+      model: "gemini-2.0-flash-lite"
       temperature: 0.6
       max_tokens: 8192
 
@@ -91,9 +91,9 @@ stages:
     params:
       prompt: "07_agent_final.md"
       provider: gemini
-      model: "gemini-2.0-flash"
+      model: "gemini-2.0-flash-lite"
       temperature: 0.2
-      max_tokens: 2048
+      max_tokens: 4096
 
   # 9. Persistencia en Base de Datos
   - name: persist
