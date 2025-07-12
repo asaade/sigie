@@ -72,9 +72,6 @@ class LLMStage(BaseStage):
         )
 
         if llm_errors:
-            # --- CORRECCIÓN DE BUG ---
-            # Se accede al campo correcto 'descripcion_hallazgo' en lugar del
-            # inexistente 'message'.
             error_summary = f"Fallo en la utilidad LLM: {llm_errors[0].descripcion_hallazgo}"
             add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, error_summary)
         elif result_obj:

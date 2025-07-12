@@ -34,7 +34,6 @@ def initialize_items_for_pipeline(params: Dict[str, Any]) -> List[Item]:
 
     for _ in range(gen_params.n_items):
         # --- CREACIÓN DE ÍTEM SIMPLIFICADA ---
-        # El modelo 'Item' ahora tiene valores por defecto para 'status', 'findings', etc.
         new_item = Item(
             batch_id=batch_id,
             generation_params=gen_params.model_dump(mode="json"),

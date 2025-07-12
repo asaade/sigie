@@ -9,6 +9,24 @@ from pydantic import BaseModel, Field, UUID4
 from .enums import ItemStatus
 import uuid
 
+
+
+class FormatoSchema(BaseModel):
+    """
+    Valores válidos:
+
+    Para tipo de reactivo:
+    * A. Cuestionamiento Directo (`cuestionamiento_directo`): Formato estándar con `estimulo` (opcional) y `enunciado_pregunta`.
+    * B. Completamiento (`completamiento`): La base contiene `_______`. Las opciones proveen las palabras, separadas por `coma y espacio` si son varias.
+    * C. Ordenamiento (`ordenamiento`): El `estimulo` presenta una lista numerada (`1.`, `2.`). Las opciones son permutaciones numéricas (`3, 1, 2`).
+    * D. Relación de Elementos (`relacion_elementos`): El `estimulo` es una tabla Markdown con dos columnas (`1.` y `a)`). Las opciones son pares de correspondencia (`1b, 2a`).
+
+    Para número de opciones:
+    3 o 4
+"""
+    tipo_reactivo: str
+    numero_opciones: int = Field(4, gt=2, le=4, description="Número de opciones por reactivo.")
+
 # --- Esquemas para Parámetros y Resultados de la API ---
 # (Estos no cambian)
 class ItemGenerationParams(BaseModel):
@@ -17,6 +35,7 @@ class ItemGenerationParams(BaseModel):
     objetivo_aprendizaje: str
     audiencia: Dict[str, Any]
     nivel_cognitivo: str
+    formato: FormatoSchema
 
 
 class GenerationResultSchema(BaseModel):
@@ -37,12 +56,6 @@ class DominioSchema(BaseModel):
 class AudienciaSchema(BaseModel):
     nivel_educativo: str
     dificultad_esperada: str
-
-
-class FormatoSchema(BaseModel):
-    tipo_reactivo: str
-    numero_opciones: int
-
 
 class ContextoSchema(BaseModel):
     contexto_regional: Optional[str] = None

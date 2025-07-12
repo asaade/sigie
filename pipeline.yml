@@ -25,7 +25,7 @@ stages:
     params:
       prompt: "XX_agent_content_validity.md"
       provider: gemini
-      model: gemini-2.5-pro
+      model: gemini-2.0-flash
       temperature: 0.3
       max_tokens: 4096
 
@@ -82,7 +82,7 @@ stages:
     params:
       prompt: "04_agente_refinador_estilo.md"
       provider: gemini
-      model: "gemini-2.0-flash-lite"
+      model: "gemini-2.5-pro"
       temperature: 0.6
       max_tokens: 8192
 
@@ -91,7 +91,7 @@ stages:
     params:
       prompt: "07_agent_final.md"
       provider: gemini
-      model: "gemini-2.0-flash-lite"
+      model: "gemini-2.5-flash"
       temperature: 0.2
       max_tokens: 4096
 

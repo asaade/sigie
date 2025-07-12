@@ -73,7 +73,7 @@ Tu respuesta debe ser únicamente un objeto JSON con la siguiente estructura exa
     "execution_style_score": "integer (0-15)"
   },
   "justification": {
-    "areas_de_mejora": "string (Solo si el ítem tiene menos de 90 de 'score_total', si no 'Aprobado'. Si es rechazado, explica las razones. Sé específico y constructivo. Enmarca siempre tus sugerencias en cómo mejorarían la calidad del ítem como instrumento de medición, por ejemplo: 'aumentaría su poder de discriminación' o 'reduciría la varianza irrelevante al constructo', no solo como una herramienta pedagógica.)"
+    "areas_de_mejora": "string (Solo si el ítem tiene menos de 90 de 'score_total', si no 'Aprobado'. Si es rechazado, explica las razones con concisión. Sé específico y constructivo. Enmarca siempre tus sugerencias en cómo mejorarían la calidad del ítem como instrumento de medición, por ejemplo: 'aumentaría su poder de discriminación' o 'reduciría la varianza irrelevante al constructo', no solo como una herramienta pedagógica.)"
   }
 }
 ```
