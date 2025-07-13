@@ -145,27 +145,8 @@ Plantilla de Respuesta:
 {
   "temp_id": "string (el mismo temp_id del ítem original)",
   "item_refinado": {
-    "version": "1.0",
-    "dominio": { ... },
-    "objetivo_aprendizaje": "...",
-    "audiencia": { ... },
-    "formato": { ... },
-    "contexto": null,
-    "cuerpo_item": {
-      "estimulo": "Texto del estímulo, posiblemente refinado por ti.",
-      "enunciado_pregunta": "Texto del enunciado, posiblemente refinado por ti.",
-      "opciones": [ ... ],
-      "recurso_grafico": { ... }
-    },
-    "clave_y_diagnostico": {
-      "respuesta_correcta_id": "...",
-      "errores_comunes_mapeados": [ ... ],
-      "retroalimentacion_opciones": [
-        { "id": "a", "es_correcta": false, "justificacion": "Justificación de la opción a, posiblemente refinada por ti." },
-        // ...etc.
-      ]
-    },
-    "metadata_creacion": { ... } // <-- Este campo y otros deben ser copiados exactamente.
+    // Aquí va el objeto COMPLETO del ítem después de tus correcciones.
+    // Debe ser una copia del 'item_original' con las modificaciones aplicadas.
   },
   "correcciones_realizadas": [
     {

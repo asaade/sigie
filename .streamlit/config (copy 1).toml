@@ -1,0 +1,19 @@
+[theme]
+# Color principal para elementos interactivos como botones, selectores, etc.
+# Un azul corporativo, sobrio y profesional.
+primaryColor="#0D3B66"
+
+# Color de fondo principal de la aplicación.
+# Un gris muy claro y neutro que es más suave a la vista que el blanco puro.
+backgroundColor="#F0F2F6"
+
+# Color de fondo para elementos como la barra lateral y la mayoría de los contenedores.
+# Un blanco limpio para contrastar con el fondo principal.
+secondaryBackgroundColor="#FFFFFF"
+
+# Color del texto principal.
+# Un gris carbón oscuro para una excelente legibilidad sin la dureza del negro puro.
+textColor="#31333F"
+
+# Familia de fuentes a utilizar. "sans serif" es moderna y muy legible en pantalla.
+font="sans serif"

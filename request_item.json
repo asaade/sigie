@@ -1,17 +1,17 @@
 {
-  "n_items": 2,
+  "n_items": 1,
   "dominio": {
-    "area": "Ciencias de la Salud",
-    "asignatura": "Medicina General",
-    "tema": "Prevención y Detección Oportuna de Cáncer de Mama"
+    "area": "Ciencias Sociales y Humanidades",
+    "asignatura": "Pedagogía",
+    "tema": "Acción Tutorial y Estrategias de Intervención"
   },
-  "objetivo_aprendizaje": "Aplicar las guías de práctica clínica vigentes en México para el tamizaje de cáncer de mama en un caso clínico con factores de riesgo específicos.",
+  "objetivo_aprendizaje": "Identificar la estrategia de intervención psicopedagógica adecuada (tutorías) a partir de la descripción de una problemática y los objetivos de un plan de acción universitario.",
   "audiencia": {
-    "nivel_educativo": "Licenciatura (egreso de Medicina)",
-    "dificultad_esperada": "media-alta"
+    "nivel_educativo": "Licenciatura en Pedagogía",
+    "dificultad_esperada": "media"
   },
-  "nivel_cognitivo": "Aplicar",
+  "nivel_cognitivo": "Comprender",
   "formato": {
-    "tipo_reactivo": "cuestionamiento_directo"
+    "tipo_reactivo": "completamiento"
   }
 }

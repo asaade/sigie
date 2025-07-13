@@ -28,7 +28,6 @@ class FormatoSchema(BaseModel):
     numero_opciones: int = Field(4, gt=2, le=4, description="Número de opciones por reactivo.")
 
 # --- Esquemas para Parámetros y Resultados de la API ---
-# (Estos no cambian)
 class ItemGenerationParams(BaseModel):
     n_items: int = Field(1, gt=0, le=10, description="Número de ítems a generar.")
     dominio: Dict[str, Any]
@@ -125,6 +124,7 @@ class ItemPayloadSchema(BaseModel):
     dominio: DominioSchema
     objetivo_aprendizaje: str
     audiencia: AudienciaSchema
+    nivel_cognitivo: str
     formato: FormatoSchema
     contexto: Optional[ContextoSchema] = None
     cuerpo_item: CuerpoItemSchema

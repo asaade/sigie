@@ -3,7 +3,7 @@
 DROP TABLE IF EXISTS items CASCADE;
 
 -- Habilitar la extensión para generación de UUIDs si no existe
-CREATE EXTENSION IF NOT NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Crear o actualizar la tabla 'items' con la estructura final
 CREATE TABLE IF NOT EXISTS items (

@@ -50,7 +50,10 @@ Aplica estos fundamentos técnicos sin excepción.
     * Consistencia Gramatical: Todas las opciones deben conectar de forma gramaticalmente correcta y natural con el enunciado_pregunta. Si el enunciado es una frase a completar, todas las opciones deben completarla fluidamente.
     * Precisión Numérica: Al generar opciones numéricas, asegúrate de que todas (tanto la correcta como los distractores) compartan un nivel de precisión y formato decimal lógicos y consistentes. Si la respuesta correcta requiere dos decimales, los distractores también deberían presentarlos para mantener la homogeneidad estructural.
     * El número de opciones puede ser 3 o 4, dependiendo del valor `numero_opciones` en la solicitud.
+    * Puede incluir Markdown y LaTex.
 * `retroalimentacion_opciones`: La justificación de un distractor debe explicar brevemente el error conceptual o procedimental que conduce a esa opción. Ejemplo: 'Incorrecto. Este resultado se obtiene al confundir el radio con el diámetro en la fórmula del área, un error procedimental común'.
+* `recurso_gráfico` : Si se incluye un recurso gráfico en el cuerpo del ítem, debe hacerse referencia a él en el `enunciado_pregunta` o el `estimulo`. El recurso no es solo un añadido, es parte del cuestionamiento. El sustentante debe saber qué es, por qué está ahí y qué se debe hacer con él.
+
 
 ## 2. Calidad del Contenido y Nivel Cognitivo
 
@@ -86,9 +89,9 @@ Los recursos gráficos deben ser herramientas de medición precisas, no elemento
 
   * A. Cuándo Incluir un Recurso Gráfico: Es obligatorio si el objetivo requiere la interpretación de datos visuales, si el estímulo contiene datos complejos que son más claros en formato visual, o si el ítem evalúa un elemento inherentemente visual. Nunca incluyas un gráfico con fines puramente estéticos.
   * B. Guía de Formatos Específicos:
-      * Para `tabla_markdown`: Para tabla_markdown: Encabezados en **negritas** y centrados. Las columnas de texto se alinean a la izquierda; las columnas de datos numéricos se alinean a la derecha.
+      * Para `tabla_markdown`: Para tabla_markdown: Encabezados en **negritas** y centrados. Las columnas de texto se alinean a la izquierda; las columnas de datos numéricos se alinean a la derecha. La tabla debe tener un título claro que la identifique.
       * Para `formula_latex`: Úsalo para expresiones complejas. De otro modo, las variables deben ir en cursivas, mientras que números y operadores van en letra normal. Usa solo LaTex, Unicode o Markdown, pero no los mezcles en las expresiones.
-      * Para `prompt_para_imagen`: El prompt debe ser en inglés, descriptivo, objetivo y específico sobre el contenido y estilo visual. Servirá después para guiar la elaboración de la imagen o gráfico.
+      * Para `prompt_para_imagen`: El prompt debe ser en inglés, descriptivo, objetivo y específico sobre el contenido y estilo visual. Servirá después para guiar la elaboración de la imagen o gráfico. Debe incluirse un título o encabezado claro que identifique la imagen.
   * C. Calidad de la `descripcion_accesible`: Debe describir el contenido y la estructura del gráfico de forma concisa para un sistema lector de pantalla, sin revelar jamás la respuesta.
 
 ## 4. Formatos de Reactivo: Guía y Ejemplos
@@ -150,6 +153,7 @@ Ahora, siguiendo todo tu rol y estos estándares psicométricos, genera los 'n_i
       "nivel_educativo": "Licenciatura en Contaduría",
       "dificultad_esperada": "media"
     },
+    "nivel_cognitivo": "Aplicar",
     "formato": {
       "tipo_reactivo": "opcion_multiple",
       "numero_opciones": 4

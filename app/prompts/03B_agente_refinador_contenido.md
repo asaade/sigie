@@ -26,48 +26,8 @@ Responde exclusivamente con un objeto JSON que siga esta plantilla de manera exa
 {
   "temp_id": "string (el mismo temp_id del ítem original)",
   "item_refinado": {
-    "version": "1.0",
-    "dominio": {
-      "area": "string",
-      "asignatura": "string",
-      "tema": "string"
-    },
-    "objetivo_aprendizaje": "string",
-    "audiencia": {
-      "nivel_educativo": "string",
-      "dificultad_esperada": "string"
-    },
-    "formato": {
-      "tipo_reactivo": "string",
-      "numero_opciones": 3
-    },
-    "contexto": {
-      "contexto_regional": null,
-      "referencia_curricular": null
-    },
-    "cuerpo_item": {
-      "estimulo": "string",
-      "enunciado_pregunta": "string",
-      "recurso_grafico": {
-          "tipo": "string",
-          "contenido": "string (el contenido corregido del gráfico)",
-          "descripcion_accesible": "string"
-      },
-      "opciones": [
-        { "id": "a", "texto": "string", "recurso_grafico": null }
-      ]
-    },
-    "clave_y_diagnostico": {
-      "respuesta_correcta_id": "string",
-      "errores_comunes_mapeados": ["string"],
-      "retroalimentacion_opciones": [
-        { "id": "a", "es_correcta": false, "justificacion": "string" }
-      ]
-    },
-    "metadata_creacion": {
-      "fecha_creacion": "string (AAAA-MM-DD)",
-      "agente_generador": "string"
-    }
+    // Aquí va el objeto COMPLETO del ítem después de tus correcciones.
+    // Debe ser una copia del 'item_original' con las modificaciones aplicadas.
   },
   "correcciones_realizadas": [
     {
