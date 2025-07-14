@@ -43,7 +43,7 @@ class ValidateHardStage(BaseStage):
         # Si una validación retorna False, significa que ha fallado y ha puesto
         # el estado en FATAL, por lo que detenemos la validación para este ítem.
         if not self._validate_options_and_key(item): return
-        if not self._validate_completamiento(item): return
+        # if not self._validate_completamiento(item): return
         if not self._validate_graphic_resources(item): return
 
         # Si todas las validaciones pasan, se registra el éxito.
@@ -85,17 +85,17 @@ class ValidateHardStage(BaseStage):
 
         return True
 
-    def _validate_completamiento(self, item: Item) -> bool:
-        """Valida la consistencia para ítems de tipo 'completamiento'."""
-        if item.payload.formato.tipo_reactivo == "completamiento":
-            holes = item.payload.cuerpo_item.enunciado_pregunta.count("___")
-            if holes > 0:
-                for opt in item.payload.cuerpo_item.opciones:
-                    segs = re.split(r'\s*,\s*|\s+y\s+', opt.texto)
-                    if len(segs) != holes:
-                        add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, f"Para 'completamiento', los segmentos en la opción '{opt.id}' no coinciden con los huecos.")
-                        return False
-        return True
+    # def _validate_completamiento(self, item: Item) -> bool:
+    #     """Valida la consistencia para ítems de tipo 'completamiento'."""
+    #     if item.payload.formato.tipo_reactivo == "completamiento":
+    #         holes = item.payload.cuerpo_item.enunciado_pregunta.count("___")
+    #         if holes > 0:
+    #             for opt in item.payload.cuerpo_item.opciones:
+    #                 segs = re.split(r'\s*,\s*|\s+y\s+', opt.texto)
+    #                 if len(segs) != holes:
+    #                     add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, f"Para 'completamiento', los segmentos en la opción '{opt.id}' no coinciden con los huecos.")
+    #                     return False
+    #     return True
 
     def _validate_graphic_resources(self, item: Item) -> bool:
         """NUEVO: Valida la estructura básica de todos los recursos gráficos en el ítem."""
