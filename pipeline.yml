@@ -14,7 +14,7 @@ stages:
   - name: generate_items
     params:
       prompt: "01_agent_dominio.md"
-      model: "gemini-2.5-pro"
+      model: "gemini-2.5-flash"
       temperature: 0.7
 
   # 3. Validación estructural programática
@@ -25,7 +25,7 @@ stages:
     params:
       prompt: "XX_agent_content_validity.md"
       provider: gemini
-      model: gemini-2.0-flash
+      model: gemini-2.5-flash
       temperature: 0.3
       max_tokens: 4096
 
@@ -34,7 +34,7 @@ stages:
     params:
       prompt: "03B_agente_refinador_contenido.md"
       provider: gemini
-      model: gemini-2.5-pro
+      model: gemini-2.5-flash
       temperature: 0.5
       max_tokens: 4096
 
@@ -82,7 +82,7 @@ stages:
     params:
       prompt: "04_agente_refinador_estilo.md"
       provider: gemini
-      model: "gemini-2.5-pro"
+      model: "gemini-2.0-flash"
       temperature: 0.6
       max_tokens: 8192
 
