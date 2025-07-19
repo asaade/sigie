@@ -8,72 +8,53 @@ from pydantic import BaseModel
 
 from ..registry import register
 from app.schemas.models import Item, ItemStatus
-from app.schemas.item_schemas import FinalEvaluationSchema, ItemPayloadSchema
+from app.schemas.item_schemas import FinalEvaluationSchema
 from app.pipelines.abstractions import LLMStage
-from app.pipelines.utils.stage_helpers import (
-    add_revision_log_entry,
-    handle_item_id_mismatch,
-)
+from app.pipelines.utils.stage_helpers import add_revision_log_entry, handle_item_id_mismatch
 
 @register("finalize_item")
 class FinalizeItemStage(LLMStage):
     """
     Etapa final que realiza una evaluación holística de la calidad del ítem
     y le asigna un puntaje estructurado, sin modificar su contenido.
-    Utiliza el prompt '07_agent_final.md' y espera una respuesta que se
-    ajuste a FinalEvaluationSchema.
     """
-
-    # Define el prompt y el esquema Pydantic para la clase base LLMStage
-    prompt_file = "07_agent_final.md"
     pydantic_schema = FinalEvaluationSchema
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
-        Prepara el string de input para el LLM.
-        Envía un objeto JSON que contiene el temp_id y el payload completo del
-        ítem para el juicio de calidad final.
+        Prepara el input para el LLM, enviando el payload completo y el
+        historial de cambios para un juicio de calidad final informado.
         """
-        if not item.payload or not isinstance(item.payload, ItemPayloadSchema):
-            # La clase base LLMStage ya maneja este caso marcando el ítem como FATAL.
+        if not item.payload:
             return json.dumps({"error": "Item payload is missing or invalid."})
 
-        # Preparamos un objeto que contiene tanto el ítem como su ID temporal
-        # para que el LLM lo devuelva y podamos verificar la consistencia.
+        # --- CORRECCIÓN ---
+        # Ahora se incluye el 'change_log' en el input para el LLM.
         input_data = {
             "temp_id": str(item.temp_id),
-            "item_a_evaluar": item.payload.model_dump(mode='json')
+            "item_a_evaluar": item.payload.model_dump(mode='json'),
+            "historial_de_cambios": [log.model_dump(mode='json') for log in item.change_log]
         }
-
         return json.dumps(input_data, ensure_ascii=False)
 
-    async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
+    async def _process_llm_result(self, item: Item, result: Optional[BaseModel], tokens_used: int):
         """
-        Procesa el veredicto de calidad del LLM, valida su consistencia
-        y lo almacena en el payload del ítem.
+        Procesa el veredicto de calidad del LLM y lo almacena en el payload del ítem.
         """
+        # ... (el resto del método se mantiene igual) ...
         if not result or not isinstance(result, FinalEvaluationSchema):
-            comment = f"No se recibió una estructura de evaluación válida del LLM. Se recibió: {type(result).__name__}."
-            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)
+            comment = f"No se recibió una estructura de evaluación válida del LLM."
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment, tokens_used=tokens_used)
             return
 
-        # Verificación de consistencia: el temp_id en la respuesta del LLM
-        # debe coincidir con el del ítem que estamos procesando.
         if handle_item_id_mismatch(item, self.stage_name, str(item.temp_id), str(result.temp_id)):
             return
 
-        # Si todo es correcto, asignamos el resultado de la evaluación
-        # al nuevo campo en el payload del ítem.
         if item.payload:
             item.payload.final_evaluation = result
-
-            verdict = "Ready for production" if result.is_ready_for_production else "Needs manual review"
-            comment = (
-                f"Final evaluation complete. "
-                f"Score: {result.score_total}/100. Verdict: {verdict}."
+            verdict = "Listo para producción" if result.is_ready_for_production else "Requiere revisión manual"
+            comment = f"Éxito. Puntuación final: {result.score_total}/100. Veredicto: {verdict}."
+            add_revision_log_entry(
+                item, self.stage_name, ItemStatus.EVALUATION_COMPLETE,
+                comment, tokens_used=tokens_used
             )
-            add_revision_log_entry(item, self.stage_name, ItemStatus.EVALUATION_COMPLETE, comment)
-        else:
-            # Caso improbable, pero es una buena práctica manejarlo.
-            comment = "Item payload was lost before final evaluation could be assigned."
-            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)

@@ -1,17 +1,18 @@
 {
-  "n_items": 1,
-  "dominio": {
-    "area": "Ciencias Sociales y Humanidades",
-    "asignatura": "Pedagogía",
-    "tema": "Acción Tutorial y Estrategias de Intervención"
-  },
-  "objetivo_aprendizaje": "Identificar la estrategia de intervención psicopedagógica adecuada (tutorías) a partir de la descripción de una problemática y los objetivos de un plan de acción universitario.",
-  "audiencia": {
-    "nivel_educativo": "Licenciatura en Pedagogía",
-    "dificultad_esperada": "media"
-  },
-  "nivel_cognitivo": "Comprender",
-  "formato": {
-    "tipo_reactivo": "completamiento"
+    "n_items": 3,
+    "dominio": {
+      "area": "Ciencias de la Salud",
+      "asignatura": "Enfermería Quirúrgica",
+      "tema": "Tiempos Quirúrgicos Fundamentales"
+    },
+    "objetivo_aprendizaje": "Ordenar secuencialmente las acciones de enfermería correspondientes a los tiempos quirúrgicos fundamentales (incisión, hemostasia, exéresis, sutura) durante un procedimiento de apendicectomía.",
+     "audiencia": {
+      "nivel_educativo": "Licenciatura en Enfermería (Egreso)",
+      "dificultad_esperada": "media"
+    },
+    "nivel_cognitivo": "Aplicación",
+    "formato": {
+      "tipo_reactivo": "ordenamiento",
+      "numero_opciones": 4
+    }
   }
-}

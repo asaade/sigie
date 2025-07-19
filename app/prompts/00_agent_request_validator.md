@@ -23,7 +23,7 @@ Al recibir el payload de la solicitud (`{input}`), debes realizar las siguientes
   * Claridad y No Ambigüedad: El objetivo debe ser claro y específico, sin dejar lugar a interpretaciones.
   * Viabilidad para MCQ: La tarea descrita en el objetivo debe ser evaluable a través de un formato de opción múltiple. Un objetivo como "Redactar un ensayo sobre..." no es viable.
 
-### 3. Validación de Alineación Cognitiva
+### 3. Validación de Alineación Cognitiva (Taxonomía cognitiva de Bloom)
 
   * Compara el verbo y la tarea del `objetivo_aprendizaje` con el `nivel_cognitivo` (Bloom) solicitado. Deben estar alineados.
   * Ejemplo de Error: El objetivo es "Listar las capitales de Europa" (nivel: Recordar), pero se solicita un `nivel_cognitivo` de "Analizar".

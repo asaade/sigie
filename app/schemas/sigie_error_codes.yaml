@@ -1,318 +1,158 @@
-version: "2025-06-29"
+# Catálogo de Errores SIGIE v3.0 - Versión Final y Definitiva
+version: "2025-07-14"
 
-ESTILO:
-
-* code: E020_STEM_LENGTH
-  message: "Enunciado excede el límite de longitud."
-  fix_hint: "Recortar el enunciado sin perder claridad."
-  severity: error
-
-* code: E040_OPTION_LENGTH
-  message: "Longitud de opciones desbalanceada o demasiado extensa."
-  fix_hint: "Igualar o acortar el texto de las opciones según corresponda."
-  severity: error
-  details_allowed:
-  * excess
-  * variation
-
-* code: E080_MATH_FORMAT
-  message: "Mezcla de Unicode y LaTeX o formato matemático inconsistente."
-  fix_hint: "Usar un solo sistema de notación de forma consistente."
-  severity: error
-
-* code: E091_CORRECTA_SIMILAR_STEM
-  message: "Opción correcta demasiado similar al enunciado; revela la respuesta."
-  fix_hint: "Reformular enunciado u opción para evitar pistas obvias."
-  severity: error
-
-* code: E106_COMPLEX_OPTION_TYPE
-  message: "Se usó “todas las anteriores”, “ninguna de las anteriores” o combinaciones equivalentes."
-  fix_hint: "Sustituir por distractores específicos."
-  severity: error
-
-* code: W101_STEM_NEG_LOWER
-  message: "Negación en minúscula en el enunciado; debe ir en MAYÚSCULAS."
-  fix_hint: "Reformular en positivo o poner la negación en mayúsculas."
-  severity: warning
-
-* code: W102_ABSOL_STEM
-  message: "Uso de absolutos en el enunciado."
-  fix_hint: "Sustituir absolutos por formulaciones más matizadas."
-  severity: warning
-
-* code: W103_HEDGE_STEM
-  message: "Expresión hedging innecesaria en el enunciado."
-  fix_hint: "Eliminar o precisar la afirmación."
-  severity: warning
-
-* code: W105_LEXICAL_CUE
-  message: "Palabra clave del enunciado solo presente en la opción correcta."
-  fix_hint: "Añadir la palabra clave a un distractor o reformular."
-  severity: warning
-
-* code: W108_ALT_VAGUE
-  message: "alt_text vago, genérico o con información irrelevante."
-  fix_hint: "Describir los elementos clave relevantes para la accesibilidad."
-  severity: warning
-
-* code: W109_PLAUSIBILITY
-  message: "Distractor demasiado absurdo o fácilmente descartable."
-  fix_hint: "Ajustar el distractor para representar un error conceptual plausible (considerar E202 para problemas de fondo)."
-  severity: warning
-
-* code: W112_DISTRACTOR_SIMILAR
-  message: "Dos o más distractores son demasiado similares entre sí."
-  fix_hint: "Reformular distractores para representar errores diferentes."
-  severity: warning
-
-* code: W113_VAGUE_QUANTIFIER
-  message: "Cuantificador vago en el enunciado."
-  fix_hint: "Sustituir por cuantificador preciso o reformular."
-  severity: warning
-
-* code: W114_OPTION_NO_PERIOD
-  message: "Las opciones terminan en punto final."
-  fix_hint: "Eliminar el punto final."
-  severity: warning
-
-* code: W115_OPTION_NO_AND_IN_SERIES
-  message: "Conjunción “y” u “o” antes del último elemento de una serie con comas."
-  fix_hint: "Eliminar la conjunción redundante."
-  severity: warning
-
-* code: W125_DESCRIPCION_DEFICIENTE
-  message: "Descripción visual poco informativa o faltante."
-  fix_hint: "Mejorar la descripción para que sea concisa y completa."
-  severity: warning
-
-* code: W130_LANGUAGE_MISMATCH
-  message: "Mezcla inadvertida de idiomas en el ítem."
-  fix_hint: "Unificar el idioma del enunciado y las opciones."
-  severity: warning
-
-* code: W199_UNCATEGORIZED_STYLE
-  message: "Problema de estilo no clasificado."
-  fix_hint: "Revisar manualmente el estilo del ítem."
-  severity: warning
-
-LOGICO:
-
-* code: E070_NO_CORRECT_RATIONALE
-  message: "Falta la justificación de la opción correcta."
-  fix_hint: "Añadir texto explicativo en la justificación de la opción correcta."
-  severity: error
-
-* code: E071_CALCULO_INCORRECTO
-  message: "Cálculo incorrecto en la opción correcta."
-  fix_hint: "Verificar procedimiento matemático y resultado final."
-  severity: error
-
-* code: E072_UNIDADES_INCONSISTENTES
-  message: "Unidades o magnitudes inconsistentes entre enunciado y opciones."
-  fix_hint: "Asegurar consistencia de unidades y magnitudes."
-  severity: error
-
-* code: E073_CONTRADICCION_INTERNA
-  message: "Información contradictoria o inconsistencia lógica interna."
-  fix_hint: "Revisar y corregir la coherencia de datos y principios."
-  severity: fatal
-
-* code: E074_NIVEL_COGNITIVO_INAPROPIADO
-  message: "El ítem no coincide con el nivel cognitivo declarado."
-  fix_hint: "Ajustar el nivel declarado o reformular el ítem."
-  severity: fatal
-
-* code: E075_DESCONOCIDO_LOGICO
-  message: "Error lógico no clasificado."
-  fix_hint: "Revisar manualmente la lógica del ítem."
-  severity: fatal
-
-* code: E076_DISTRACTOR_RATIONALE_MISMATCH # NUEVO CÓDIGO
-  message: "La justificación del distractor no es clara o no se alinea con un error conceptual plausible."
-  fix_hint: "Reformular la justificación del distractor para que sea clara y refleje un error conceptual común o plausible."
-  severity: error
-
-* code: E092_JUSTIFICA_INCONGRUENTE
-  message: "La justificación contradice la opción correspondiente."
-  fix_hint: "Alinear la justificación con el contenido de la opción."
-  severity: error
-
+# ===================================================================
+# CATEGORÍA 1: ERRORES ESTRUCTURALES (Validador 'Hard' - Programático)
+# ===================================================================
 ESTRUCTURAL:
+  - code: E001_SCHEMA_INVALIDO
+    message: "El JSON del ítem no cumple con el esquema Pydantic."
+    severity: fatal
+  - code: E010_NUM_OPCIONES_INVALIDO
+    message: "El número de opciones no es 3 o 4."
+    severity: fatal
+  - code: E011_ID_OPCION_DUPLICADO
+    message: "Se encontraron IDs de opción duplicados."
+    severity: fatal
+  - code: E012_CONTEO_CLAVE_INCORRECTO
+    message: "Debe haber exactamente una opción marcada como correcta (`es_correcta: true`)."
+    severity: fatal
+  - code: E013_ID_CLAVE_NO_COINCIDE
+    message: "`respuesta_correcta_id` no coincide con la opción marcada como correcta."
+    severity: fatal
+  - code: E030_COMPLETAMIENTO_INCONSISTENTE
+    message: "En ítems de completamiento, los segmentos en las opciones no coinciden con los huecos."
+    severity: fatal
 
-* code: E001_SCHEMA
-  message: "El JSON del ítem no cumple el esquema."
-  fix_hint: "Regenerar el ítem siguiendo el esquema."
-  severity: fatal
+# ===================================================================
+# CATEGORÍA 2: ERRORES DE CONTENIDO (Agente: Maestro Pulidor)
+# ===================================================================
+CONTENIDO:
+  - code: E200_DESALINEACION_CURRICULAR
+    message: "El ítem no evalúa el `objetivo_aprendizaje`, `tema` o `nivel_cognitivo` declarado."
+    severity: fatal
+  - code: E201_ERROR_FACTUAL_CONCEPTUAL
+    message: "El ítem contiene un error factual o conceptual en su planteamiento, opciones o clave."
+    severity: fatal
+  - code: E202_DISTRACTOR_NO_PLAUSIBLE
+    message: "Un distractor es conceptualmente inverosímil o no representa un error pedagógicamente relevante."
+    severity: error
+  - code: E203_VIOLACION_UNIDIMENSIONALIDAD
+    message: "El ítem evalúa múltiples constructos o habilidades principales a la vez."
+    severity: fatal
+  - code: E204_CALCULO_INCORRECTO
+    message: "El resultado numérico en la clave o un distractor basado en cálculo es incorrecto."
+    severity: error
+  - code: E205_JUSTIFICACION_AUSENTE # NUEVO: Rescatado de Lógico (E070).
+    message: "Falta la justificación para una o más opciones."
+    fix_hint: "Añadir texto explicativo en la justificación de la opción correspondiente."
+    severity: error
+  - code: E206_UNIDADES_INCONSISTENTES # NUEVO: Rescatado de Lógico (E072).
+    message: "Unidades o magnitudes inconsistentes entre enunciado, opciones o justificaciones."
+    fix_hint: "Asegurar consistencia de unidades y magnitudes en todo el ítem."
+    severity: error
+  - code: E207_DESALINEACION_COGNITIVA_REAL # NUEVO CÓDIGO
+    message: "La tarea real del ítem no corresponde al nivel cognitivo declarado."
+    fix_hint: "La tarea del enunciado (ej. 'identificar') es de un nivel inferior/superior al nivel cognitivo declarado (ej. 'Analizar'). El ítem debe ser rediseñado o el nivel cognitivo corregido."
+    severity: fatal
+# ===================================================================
+# CATEGORÍA 3: ERRORES DE LÓGICA ARGUMENTAL (Agente: Maestro Lógico)
+# ===================================================================
+LOGICO:
+  - code: E073_CONTRADICCION_INTERNA
+    message: "Información contradictoria entre diferentes partes del ítem."
+    severity: error
+  - code: E076_JUSTIFICACION_DISTRACTOR_DEBIL
+    message: "La justificación del distractor no articula el 'camino mental erróneo' del estudiante."
+    fix_hint: "Reescribir para que explique el error conceptual o procedimental específico que hace atractiva esa opción."
+    severity: error
+  - code: E077_DESBALANCE_DE_DISTRACTORES # NUEVO CÓDIGO
+    message: "El conjunto de distractores está desbalanceado. Uno es significativamente menos plausible o atractivo que los demás."
+    fix_hint: "Reemplazar o reformular el distractor más débil para que represente un error conceptual de plausibilidad similar a los otros."
+    severity: error
+  - code: E092_JUSTIFICACION_CLAVE_IRRELEVANTE
+    message: "La justificación de la clave es correcta pero no explica por qué la opción responde a la pregunta."
+    fix_hint: "Reescribir para conectar explícitamente las premisas del estímulo con la respuesta correcta."
+    severity: error
 
-* code: E010_NUM_OPTIONS
-  message: "El número de opciones debe ser entre 3 y 4." # Mensaje actualizado
-  fix_hint: "Ajustar la cantidad de opciones a 3 o 4." # Fix hint actualizado
-  severity: fatal
-
-* code: E011_DUP_ID
-  message: "IDs de opciones duplicados."
-  fix_hint: "Usar IDs únicos."
-  severity: fatal
-
-* code: E012_CORRECT_COUNT
-  message: "Debe haber exactamente una opción correcta."
-  fix_hint: "Dejar solo una opción con es_correcta: true."
-  severity: fatal
-
-* code: E013_ID_NO_MATCH
-  message: "respuesta_correcta_id no coincide con la opción correcta."
-  fix_hint: "Sincronizar respuesta_correcta_id con el id de la opción correcta."
-  severity: fatal
-
-* code: E030_COMPLET_SEGMENTS
-  message: "Segmentos de opciones no coinciden con huecos del enunciado."
-  fix_hint: "Alinear segmentos con huecos."
-  severity: fatal
-
-* code: E050_BAD_URL
-  message: "URL no válida o inaccesible."
-  fix_hint: "Proveer URL accesible o dejar recurso_visual en null."
-  severity: fatal
-
-* code: E060_MULTI_TESTLET
-  message: "testlet_id y estimulo_compartido desincronizados."
-  fix_hint: "Sincronizarlos o eliminarlos."
-  severity: fatal
-
+# ===================================================================
+# CATEGORÍA 4: ERRORES DE POLÍTICAS Y EQUIDAD (Agente: Maestro de Equidad)
+# ===================================================================
 POLITICAS:
+  - code: E090_CONTENIDO_OFENSIVO
+    message: "Contenido ofensivo, obsceno, violento o inapropiado."
+    severity: fatal
+  - code: E120_SESGO_ESTEREOTIPO
+    message: "El ítem presenta sesgos o estereotipos (género, culturales, socioeconómicos, etc.)."
+    severity: error
+  - code: E129_LENGUAJE_DISCRIMINATORIO
+    message: "El ítem contiene lenguaje explícitamente peyorativo o excluyente."
+    severity: error
+  - code: E130_FALLA_ACCESIBILIDAD
+    message: "Un recurso no textual carece de una alternativa accesible adecuada (ej. `descripcion_accesible` deficiente)."
+    severity: error
+  - code: E140_TONO_INAPROPIADO
+    message: "El tono no es formal, académico y respetuoso."
+    severity: error
+  - code: E142_SESGO_IMPLICITO # NUEVO: Rescatado de Políticas.
+    message: "El lenguaje o los ejemplos contienen un sesgo implícito leve que podría ser mejorado."
+    fix_hint: "Revisar ejemplos y lenguaje para asegurar la máxima neutralidad."
+    severity: warning
 
-* code: E090_CONTENIDO_OFENSIVO
-  message: "Contenido ofensivo, obsceno, violento, o que promueve actividades ilegales."
-  fix_hint: "Reescribir para eliminar contenido inapropiado."
-  severity: fatal
+# ===================================================================
+# CATEGORÍA 5: ERRORES DE ESTILO Y FORMATO (Agente: Editor de Estilo / Validador 'Soft')
+# ===================================================================
+ESTILO:
+  - code: E020_ENUNCIADO_EXTENSO # NUEVO: Rescatado de Estilo.
+    message: "El enunciado (base/pregunta) es demasiado largo y podría afectar la claridad."
+    severity: warning
+  - code: E091_PISTA_GRAMATICAL # NUEVO: Rescatado y renombrado desde E091_CORRECTA_SIMILAR_STEM.
+    message: "La opción correcta es la única que concuerda gramaticalmente con el enunciado, o es demasiado similar."
+    fix_hint: "Reformular opciones o enunciado para que todas las opciones sean gramaticalmente plausibles."
+    severity: error
+  - code: E101_NEGACION_MINUSCULA
+    message: "Palabras de negación (NO, EXCEPTO) deben ir en mayúsculas y negritas."
+    severity: warning
+  - code: E102_USO_DE_ABSOLUTOS
+    message: "Uso de absolutos ('siempre', 'nunca', 'todos') en el enunciado."
+    severity: warning
+  - code: E104_OPCIONES_NO_HOMOGENEAS
+    message: "La longitud de las opciones de respuesta es muy variable."
+    severity: warning
+  - code: E105_PISTA_LEXICA
+    message: "Una palabra clave del enunciado se repite solo en la opción correcta."
+    severity: error
+  - code: E106_TIPO_OPCION_PROHIBIDO
+    message: "Se usó 'todas las anteriores' o 'ninguna de las anteriores'."
+    severity: error
+  - code: E112_DISTRACTORES_SIMILARES
+    message: "Dos o más distractores son conceptualmente demasiado similares entre sí."
+    severity: error
+  - code: E113_CUANTIFICADOR_VAGO # NUEVO: Rescatado de Estilo.
+    message: "Uso de cuantificadores vagos ('algunos', 'muchos') cuando se requiere precisión."
+    severity: warning
+  - code: E114_PUNTO_FINAL_OPCION
+    message: "Las opciones de respuesta no deben terminar con un punto."
+    severity: warning
+  - code: E131_MEZCLA_IDIOMAS # NUEVO: Rescatado y renombrado de E130_LANGUAGE_MISMATCH.
+    message: "Mezcla inadvertida de idiomas en el ítem."
+    severity: warning
+  - code: E199_ESTILO_NO_CATEGORIZADO # NUEVO: Rescatado de Estilo.
+    message: "Problema de estilo no clasificado."
+    severity: warning
 
-* code: E120_SESGO_GENERO
-  message: "El ítem (texto, nombres, imágenes) presenta sesgo o estereotipos de género."
-  fix_hint: "Usar lenguaje neutral e inclusivo o reemplazar recursos visuales/ejemplos con sesgo de género."
-  severity: error
+# ===================================================================
+# CATEGORÍA 6: ERRORES DE SISTEMA Y PIPELINE (No-Item)
+# ===================================================================
+SISTEMA:
+  - code: E901_LLM_CALIDAD_BAJA
+  - code: E904_LLM_FORMATO_INVALIDO
+  - code: E905_LLM_LLAMADA_FALLIDA
+  - code: E951_PROMPT_NO_ENCONTRADO
+  - code: E952_PAYLOAD_AUSENTE
+  - code: E953_ID_NO_COINCIDE
 
-* code: E121_SESGO_CULTURAL_ETNICO
-  message: "El ítem (texto, nombres, imágenes) presenta sesgo o estereotipos culturales, étnicos o referencias excluyentes."
-  fix_hint: "Usar referencias culturalmente sensibles."
-  severity: error
-
-* code: E129_LENGUAJE_DISCRIMINATORIO
-  message: "El ítem contiene lenguaje explícitamente discriminatorio, excluyente o peyorativo hacia algún grupo."
-  fix_hint: "Sustituir por formulaciones inclusivas."
-  severity: error
-
-* code: E130_ACCESIBILIDAD_CONTENIDO
-  message: "Problema de accesibilidad en el contenido del ítem (ej. información no textual sin alternativa)."
-  fix_hint: "Proveer alternativas textuales o formatos accesibles."
-  severity: error
-
-* code: E140_TONO_INAPROPIADO_ACADEMICO
-  message: "Tono o lenguaje inapropiado para un contexto académico o profesional."
-  fix_hint: "Ajustar a registro formal."
-  severity: error
-
-* code: W141_CONTENIDO_TRIVIAL
-  message: "Contenido trivial o irrelevante para los objetivos de aprendizaje (considerar E200 para problemas de alineación conceptual)."
-  fix_hint: "Alinear con objetivos de aprendizaje o eliminar contenido trivial."
-  severity: warning
-
-* code: W142_SESGO_IMPLICITO
-  message: "Sesgo implícito leve detectado."
-  fix_hint: "Revisar ejemplos y lenguaje para neutralidad."
-  severity: warning
-
-CONTENIDO: # NUEVA CATEGORÍA AÑADIDA
-
-* code: E200_CONTENT_MISALIGNMENT
-  message: "El contenido del ítem no se alinea con la metadata (tema, nivel, habilidad, etc.)."
-  fix_hint: "Ajustar el contenido del ítem para que refleje los parámetros de la metadata o viceversa."
-  severity: error
-
-* code: E201_CONCEPTUAL_ERROR
-  message: "El ítem contiene un error conceptual o factual en su contenido."
-  fix_hint: "Corregir el error conceptual o factual en el enunciado, opciones o justificaciones."
-  severity: fatal
-
-* code: E202_DISTRACTOR_CONCEPTUAL_FLAW
-  message: "Un distractor es conceptualmente inverosímil o no representa un error pedagógicamente relevante."
-  fix_hint: "Reformular el distractor para que sea plausible y represente un error conceptual común."
-  severity: error
-
-* code: E203_MULTIPLE_CONSTRUCTS
-  message: "El ítem evalúa múltiples conceptos o habilidades principales."
-  fix_hint: "Simplificar el ítem para que evalúe un único constructo o habilidad."
-  severity: error
-
-LLM_SISTEMA:
-
-* code: E901_LLM_GEN_QUALITY_LOW
-  message: "Contenido generado incoherente o de baja calidad."
-  fix_hint: "Reintentar generación o ajustar prompt."
-  severity: fatal
-
-* code: E902_LLM_CONTEXT_OVERFLOW
-  message: "Límite de tokens excedido."
-  fix_hint: "Reducir tamaño de input o usar modelo con mayor ventana."
-  severity: fatal
-
-* code: E903_LLM_SAFETY_VIOLATION
-  message: "Contenido generado viola políticas de seguridad."
-  fix_hint: "Ajustar prompt para evitar contenido sensible."
-  severity: fatal
-
-* code: E904_LLM_RESPONSE_FORMAT_ERROR
-  message: "La respuesta del LLM no es JSON válido o falta campos."
-  fix_hint: "Revisar prompt para asegurar formato correcto."
-  severity: fatal
-
-* code: E905_LLM_CALL_FAILED
-  message: "Fallo en la llamada al LLM."
-  fix_hint: "Revisar configuración o conexión."
-  severity: fatal
-
-* code: E907_UNEXPECTED_LLM_PROCESSING_ERROR
-  message: "Error inesperado procesando la respuesta del LLM."
-  fix_hint: "Revisar logs para detalles."
-  severity: fatal
-
-PIPELINE_CONTROL:
-
-* code: E951_PROMPT_NOT_FOUND
-  message: "Prompt de etapa no encontrado."
-  fix_hint: "Verificar ruta del archivo de prompt."
-  severity: fatal
-
-* code: E952_NO_PAYLOAD
-  message: "Ítem sin payload para procesar."
-  fix_hint: "Revisar etapas anteriores."
-  severity: fatal
-
-* code: E953_ITEM_ID_MISMATCH
-  message: "item_id devuelto no coincide con el esperado."
-  fix_hint: "Revisar lógica de refinador."
-  severity: fatal
-
-* code: E954_GEN_INIT_MISMATCH
-  message: "Cantidad de ítems generados no coincide con la solicitada."
-  fix_hint: "Revisar parámetros de generación."
-  severity: fatal
-
-* code: E955_GEN_NO_SUCCESSFUL_OUTPUT
-  message: "Ningún ítem con estado success en la generación."
-  fix_hint: "Revisar prompt o modelo."
-  severity: fatal
-
-* code: E956_LLM_RESPONSE_FORMAT_INVALID
-  message: "Lista de ítems generada con formato inválido."
-  fix_hint: "Revisar prompt de generación."
-  severity: fatal
-
-* code: E957_LLM_ITEM_COUNT_MISMATCH
-  message: "Número de ítems generados distinto al solicitado."
-  fix_hint: "Ajustar prompt o modelo."
-  severity: fatal
-
-* code: E959_PIPELINE_FATAL_ERROR
-  message: "Error fatal inesperado en la etapa."
-  fix_hint: "Revisar log para más detalles."
-  severity: fatal
+  - code: E960_CORRECCION_IMPOSIBLE # NUEVO CÓDIGO
+    message: "El agente determinó que la corrección del hallazgo alteraría el constructo fundamental del ítem."
+    fix_hint: "Se requiere revisión manual. El ítem puede tener un defecto de diseño irreparable."
+    severity: error # Se marca como 'error' para que un humano lo revise, no 'fatal' para no descartarlo automáticamente.

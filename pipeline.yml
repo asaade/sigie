@@ -1,99 +1,58 @@
-# pipeline.yml (Versión Optimizada)
-# Define el flujo de ejecución lineal para el sistema SIGIE.
-# Orden de etapas optimizado para "fallar rápido y barato".
-
+# pipeline.yml (Versión Refactorizada)
 stages:
-  # 1. Validación de la solicitud del usuario
   - name: validate_user_request
     params:
       prompt: "00_agent_request_validator.md"
-      model: "gemini-2.0-flash"
-      temperature: 0.2
+      model: "gemini-2.0-flash-lite"
 
-  # 2. Creación inicial del ítem
   - name: generate_items
     params:
       prompt: "01_agent_dominio.md"
       model: "gemini-2.5-flash"
       temperature: 0.7
 
-  # 3. Validación estructural programática
   - name: validate_hard
 
-  # 3. Ciclo de Contenido (la validación más fundamental primero)
-  - name: validate_content_validity
-    params:
-      prompt: "XX_agent_content_validity.md"
-      provider: gemini
-      model: gemini-2.5-flash
-      temperature: 0.3
-      max_tokens: 4096
+  # - name: validate_facts
+  #   params:
+  #     prompt: "XX_agent_fact_checker.md"
+  #     # Este agente necesita un modelo potente capaz de usar herramientas
+  #     model: "gemini-2.0-flash"
+  #     # Se asume que el proveedor LLM soporta el uso de herramientas
+  #     ## tools: ["Google Search"]
 
-  - name: refine_item_content
-    listen_to_status_pattern: "content_validation.needs_revision"
-    params:
-      prompt: "03B_agente_refinador_contenido.md"
-      provider: gemini
-      model: gemini-2.5-flash
-      temperature: 0.5
-      max_tokens: 4096
+  # - name: polish_item_psychometrics
+  #   params:
+  #     prompt: "02_agente_maestro_psicometrico.md"
+  #     model: "gemini-2.0-flash"
+  #     temperature: 0.3
 
-  # 4. Ciclo de Lógica (complementario al de contenido)
-  - name: validate_item_logic
-    params:
-      prompt: "02_agent_razonamiento.md"
-      provider: gemini
-      model: gemini-2.0-flash-lite
-      temperature: 0.3
-      max_tokens: 4096
+  # - name: refine_item_policy
+  #   params:
+  #     prompt: "04_agente_maestro_equidad.md"
+  #     model: "gemini-2.0-flash-lite"
+  #     temperature: 0.5
 
-  - name: refine_item_logic
-    listen_to_status_pattern: "logic_validation.needs_revision"
-    params:
-      prompt: "03_agente_refinador_razonamiento.md"
-      provider: gemini
-      model: gemini-2.0-flash-lite
-      temperature: 0.5
-      max_tokens: 4096
-
-  # 5. Ciclo de Políticas (filtro de equidad y sesgos)
-  - name: validate_policy
-    params:
-      prompt: "05_agent_politicas.md"
-      provider: gemini
-      model: gemini-2.0-flash-lite
-      temperature: 0.3
-      max_tokens: 4096
-
-  - name: refine_item_policy
-    listen_to_status_pattern: "policy_validation.needs_revision"
-    params:
-      prompt: "06_agente_refinador_politicas.md"
-      provider: gemini
-      model: gemini-2.0-flash-lite
-      temperature: 0.5
-      max_tokens: 4096
-
-  # 6. Validación de reglas suaves
   - name: validate_soft
 
-  # 7. Refinamiento de Estilo (pulido final)
   - name: refine_item_style
     params:
-      prompt: "04_agente_refinador_estilo.md"
-      provider: gemini
+      prompt: "05_agente_maestro_estilo.md"
       model: "gemini-2.0-flash"
       temperature: 0.6
-      max_tokens: 8192
 
-  # 8. Evaluación y Veredicto Final
+  # - name: validate_hard
+
+  # - name: polish_item_psychometrics
+  #   params:
+  #     prompt: "02_agente_maestro_psicometrico.md"
+  #     model: "gemini-2.0-flash"
+  #     temperature: 0.3
+
   - name: finalize_item
     params:
       prompt: "07_agent_final.md"
-      provider: gemini
-      model: "gemini-2.5-flash"
-      temperature: 0.2
-      max_tokens: 4096
+      model: "gemini-2.0-flash"
+      temperature: 0.3
 
-  # 9. Persistencia en Base de Datos
   - name: persist

@@ -49,30 +49,44 @@ def add_revision_log_entry(
     stage_name: str,
     status: ItemStatus,
     comment: str,
+    tokens_used: Optional[int] = None, # NUEVO: Parámetro para tokens
+    duration_ms: Optional[int] = None, # NUEVO: Parámetro para duración
+    codes_found: Optional[List[str]] = None,
 ):
     """
     Función centralizada para actualizar el estado de un ítem y añadir una
-    entrada a su 'revision_log' en el payload.
+    entrada a su 'revision_log', ahora con metadatos completos.
     """
-    item.status = status
-    item.status_comment = f"[{stage_name}] {comment}"
+    # Si no se pasa una duración explícita, se intenta calcular desde el log anterior.
+    calculated_duration = duration_ms
+    if calculated_duration is None and item.audits:
+        last_timestamp = item.audits[-1].timestamp
+        # Se usa .replace(tzinfo=None) para evitar errores de timezone awareness
+        calculated_duration = int((datetime.utcnow() - last_timestamp.replace(tzinfo=None)).total_seconds() * 1000)
 
-    # El campo 'audits' en el modelo Item ahora se usa para el log de revisión.
     log_entry = RevisionLogEntry(
         stage_name=stage_name,
         timestamp=datetime.utcnow(),
         status=status,
         comment=comment,
+        duration_ms=calculated_duration,
+        tokens_used=tokens_used,
+        codes_found=codes_found,
     )
+
+    item.status = status
+    item.status_comment = f"[{stage_name}]: {status.value}"
     item.audits.append(log_entry)
 
-    if item.payload:
+    if item.payload and hasattr(item.payload, 'revision_log'):
         item.payload.revision_log.append(log_entry)
 
+    # El log del servidor ahora es más informativo
+    log_message_for_server = f"Item {item.temp_id}: {status.value} en '{stage_name}'. Dur: {calculated_duration}ms, Tokens: {tokens_used}, Códigos: {codes_found}. Detalle: {comment}"
     if status == ItemStatus.FATAL:
-        logger.error(f"Item {item.temp_id}: {item.status_comment}")
+        logger.error(log_message_for_server)
     else:
-        logger.info(f"Item {item.temp_id}: {item.status_comment}")
+        logger.info(log_message_for_server)
 
 
 def handle_missing_payload(item: Item, stage_name: str) -> bool:

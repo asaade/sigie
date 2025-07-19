@@ -33,7 +33,6 @@ class LLMStage(BaseStage):
     Clase base abstracta para etapas que interactúan con un LLM.
     Encapsula la lógica común de preparación, llamada y procesamiento del LLM.
     """
-    prompt_file: str = ""
     pydantic_schema: Optional[Type[BaseModel]] = None
 
     async def execute(self, items: List[Item]) -> List[Item]:
@@ -49,10 +48,15 @@ class LLMStage(BaseStage):
         if item.status == ItemStatus.FATAL:
             return
 
-        # La etapa 'generate_items' es la única que puede ejecutarse sin payload.
         if self.stage_name != 'generate_items':
             if handle_missing_payload(item, self.stage_name):
                 return
+
+        # Se usa .get() en lugar de .pop() para una lectura no destructiva.
+        prompt_name = self.params.get("prompt")
+        if not prompt_name:
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, "El parámetro 'prompt' no está definido en la configuración del pipeline para esta etapa.")
+            return
 
         try:
             llm_input = self._prepare_llm_input(item)
@@ -61,8 +65,8 @@ class LLMStage(BaseStage):
             add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)
             return
 
-        result_obj, llm_errors, _ = await call_llm_and_parse_json_result(
-            prompt_name=self.prompt_file,
+        result_obj, llm_errors, tokens_used = await call_llm_and_parse_json_result(
+            prompt_name=prompt_name,
             user_input_content=llm_input,
             stage_name=self.stage_name,
             item=item,
@@ -73,12 +77,12 @@ class LLMStage(BaseStage):
 
         if llm_errors:
             error_summary = f"Fallo en la utilidad LLM: {llm_errors[0].descripcion_hallazgo}"
-            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, error_summary)
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, error_summary, tokens_used=tokens_used)
         elif result_obj:
-            await self._process_llm_result(item, result_obj)
+            await self._process_llm_result(item, result_obj, tokens_used)
         else:
             summary = "El LLM no devolvió un resultado válido ni errores específicos."
-            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, summary)
+            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, summary, tokens_used=tokens_used)
 
     @abstractmethod
     def _prepare_llm_input(self, item: Item) -> str:
@@ -86,6 +90,6 @@ class LLMStage(BaseStage):
         pass
 
     @abstractmethod
-    async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
+    async def _process_llm_result(self, item: Item, result: Optional[BaseModel], tokens_used: int):
         """Procesa el resultado parseado del LLM. Debe ser implementado por la subclase."""
         pass

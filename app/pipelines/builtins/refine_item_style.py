@@ -1,68 +1,72 @@
 # app/pipelines/builtins/refine_item_style.py
 
-from __future__ import annotations
-import json
-from typing import Optional
-
-from pydantic import BaseModel
-
 from ..registry import register
 from app.schemas.models import Item, ItemStatus
-from app.schemas.item_schemas import RefinementResultSchema
-from app.pipelines.abstractions import LLMStage
-from app.pipelines.utils.stage_helpers import (
-    add_revision_log_entry,
-    handle_item_id_mismatch,
-)
+from app.pipelines.refiner_stage import BaseRefinerStage
+import json
 
 @register("refine_item_style")
-class RefineItemStyleStage(LLMStage):
+class RefineItemStyleStage(BaseRefinerStage):
     """
-    Etapa de refinamiento final que mejora el estilo, redacción y claridad de un ítem.
-    Esta etapa no depende de hallazgos previos; siempre se ejecuta para pulir el ítem.
+    Etapa que refina el ESTILO del ítem usando el Editor de Estilo
+    y el sistema de parches estructurados.
     """
-
-    # Define el prompt y el esquema Pydantic para la clase base LLMStage
-    prompt_file = "04_agente_refinador_estilo.md"
-    pydantic_schema = RefinementResultSchema
+    success_status = ItemStatus.STYLE_REFINEMENT_SUCCESS
+    stage_name_in_log = "Refinamiento de Estilo"
+    input_key = "item_a_refinar"
 
     def _prepare_llm_input(self, item: Item) -> str:
         """
-        Prepara el input JSON para el LLM.
-        Envía el ítem original para una revisión y mejora de estilo.
+        Implementación específica para el Editor de Estilo.
+        Recolecta todos los campos de texto del ítem que son visibles
+        para el usuario final y los hallazgos de la validación suave.
         """
         if not item.payload:
-            # La clase base LLMStage ya maneja este caso marcando el ítem como FATAL.
-            return json.dumps({"error": "Item payload is missing."})
+            return json.dumps({"error": "No se puede preparar el input sin un payload."})
 
-        # Preparamos un objeto que contiene tanto el ítem como su ID temporal.
-        input_payload = {
+        payload = item.payload
+
+        # 1. Recolectar todos los textos que el editor necesita revisar.
+        campos_a_revisar = []
+
+        if payload.cuerpo_item.estimulo:
+            campos_a_revisar.append({
+                "path": "cuerpo_item.estimulo",
+                "texto_original": payload.cuerpo_item.estimulo
+            })
+
+        campos_a_revisar.append({
+            "path": "cuerpo_item.enunciado_pregunta",
+            "texto_original": payload.cuerpo_item.enunciado_pregunta
+        })
+
+        for i, opcion in enumerate(payload.cuerpo_item.opciones):
+            if opcion.texto:
+                campos_a_revisar.append({
+                    "path": f"cuerpo_item.opciones[{i}].texto",
+                    "texto_original": opcion.texto
+                })
+
+        for i, retro in enumerate(payload.clave_y_diagnostico.retroalimentacion_opciones):
+             campos_a_revisar.append({
+                "path": f"clave_y_diagnostico.retroalimentacion_opciones[{i}].justificacion",
+                "texto_original": retro.justificacion
+            })
+
+        if payload.cuerpo_item.recurso_grafico and payload.cuerpo_item.recurso_grafico.descripcion_accesible:
+            campos_a_revisar.append({
+                "path": "cuerpo_item.recurso_grafico.descripcion_accesible",
+                "texto_original": payload.cuerpo_item.recurso_grafico.descripcion_accesible
+            })
+
+        # 2. Construir el payload final para el LLM.
+        input_data = {
             "temp_id": str(item.temp_id),
-            "item_a_mejorar": item.payload.model_dump(mode="json"),
+            "campos_a_revisar": campos_a_revisar
         }
-        return json.dumps(input_payload, ensure_ascii=False)
 
-    async def _process_llm_result(self, item: Item, result: Optional[BaseModel]):
-        """
-        Procesa el resultado del LLM, actualizando el ítem con las mejoras de estilo.
-        """
-        if not result or not isinstance(result, RefinementResultSchema):
-            comment = f"No se recibió una estructura de refinamiento válida del LLM. Se recibió: {type(result).__name__}."
-            add_revision_log_entry(item, self.stage_name, ItemStatus.FATAL, comment)
-            return
+        # 3. Añadir hallazgos del validador suave como guía.
+        if item.findings:
+            input_data["hallazgos_guia"] = [f.model_dump(mode="json") for f in item.findings]
 
-        # Verificación de consistencia del temp_id.
-        if handle_item_id_mismatch(item, self.stage_name, str(item.temp_id), str(result.temp_id)):
-            return
-
-        # Asigna el nuevo payload con el estilo corregido.
-        item.payload = result.item_refinado
-
-        # 1. Se persiste el historial de cambios de estilo en el log.
-        if result.correcciones_realizadas:
-            item.change_log.extend(result.correcciones_realizadas)
-
-        # 2. Se actualiza el comentario del log para reflejar el registro.
-        num_correcciones = len(result.correcciones_realizadas)
-        comment = f"Refinamiento de estilo aplicado. {num_correcciones} mejoras registradas en el change_log."
-        add_revision_log_entry(item, self.stage_name, ItemStatus.STYLE_REFINEMENT_SUCCESS, comment)
+        return json.dumps(input_data, ensure_ascii=False)

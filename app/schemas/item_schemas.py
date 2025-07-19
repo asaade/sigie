@@ -155,14 +155,31 @@ class CorrectionSchema(BaseModel):
     campo_con_error: str
     descripcion_correccion: str
 
+class ProposedPatch(BaseModel):
+    """Representa una única edición atómica propuesta por un agente refinador."""
+    path_a_modificar: str = Field(description="La ruta JSON exacta al campo que debe ser editado.")
+    texto_original: str = Field(description="El texto del campo ANTES de la corrección, para trazabilidad.")
+    texto_refinado: str = Field(description="El nuevo texto con la corrección ya aplicada.")
+    codigo_error_detectado: str = Field(description="El código de error del catálogo que justifica el cambio.")
+    descripcion_correccion: str = Field(description="Explicación concisa de la corrección realizada.")
+
+class PatchRefinementResultSchema(BaseModel):
+    temp_id: str
+    status: str = Field(description="Debe ser 'refinado_exitosamente' o 'requiere_descarte_por_error_critico'")
+    parches_propuestos: List[ProposedPatch] = Field(default_factory=list)
+
 class RevisionLogEntry(BaseModel):
     """
     Representa una entrada en el historial de auditoría de un ítem.
+    Enriquecida con metadatos de rendimiento y calidad.
     """
     timestamp: datetime
     stage_name: str
     status: ItemStatus
     comment: Optional[str] = None
+    duration_ms: Optional[int] = None
+    tokens_used: Optional[int] = None
+    codes_found: Optional[List[str]] = None
 
 class ScoreBreakdownSchema(BaseModel):
     psychometric_content_score: int
@@ -193,6 +210,23 @@ class RefinementResultSchema(BaseModel):
     # Ahora se espera que el refinador devuelva el payload con la nueva estructura unificada.
     item_refinado: ItemPayloadSchema
     correcciones_realizadas: List[CorrectionSchema]
+
+class RefinementReportEntry(BaseModel):
+    """Describe un hallazgo y la corrección aplicada por un refinador."""
+    codigo_error: str
+    campo_con_error: str
+    descripcion_hallazgo: str
+    descripcion_correccion: str
+
+class GenericRefinementResultSchema(BaseModel):
+    """
+    Esquema genérico y unificado para la respuesta de cualquier
+    agente refinador que devuelve un ítem completo modificado.
+    """
+    temp_id: str
+    status: str
+    item_refinado: Optional[ItemPayloadSchema] = None
+    reporte_de_refinamiento: List[RefinementReportEntry] = Field(default_factory=list)
 
 class ItemResultSchema(BaseModel):
     """Esquema para el resultado de un solo ítem dentro de un lote."""

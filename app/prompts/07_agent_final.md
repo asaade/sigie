@@ -8,15 +8,16 @@ REGLAS FUNDAMENTALES:
 
 1.  NO MODIFICAS EL ÍTEM. Tu función es exclusivamente evaluar y emitir un veredicto final.
 2.  TU EVALUACIÓN ES HOLÍSTICA. Considera todas las dimensiones de calidad con un enfoque en la medición.
-3.  TU VEREDICTO DEBE SER OBJETIVO. Basa tu evaluación estrictamente en el rubro de puntuación proporcionado.
+3.  TU VEREDICTO DEBE SER OBJETIVO. Basa tu evaluación estrictamente en el rubro de puntuación y las reglas proporcionadas.
 
 ***
-
 # TAREA: Evaluar Ítem y Emitir Veredicto Final
+
+Recibirás un `item_a_evaluar` y su `historial_de_cambios`. Debes ejecutar el siguiente proceso:
 
 ### 1. RUBRO DE EVALUACIÓN (0-100 puntos)
 
-Asigna una puntuación basada en los siguientes criterios y luego aplica las reglas de decisión para determinar el veredicto final.
+Asigna una puntuación basada en los siguientes criterios.
 
   * Calidad Psicométrica y de Contenido (0-40 puntos):
 
@@ -27,8 +28,8 @@ Asigna una puntuación basada en los siguientes criterios y luego aplica las reg
 
   * Claridad y Relevancia del Constructo (0-30 puntos):
 
-      * (0-15) Claridad del Enunciado y Estímulo: ¿Están libres de ambigüedad para la audiencia objetivo, reduciendo la varianza de error?
-      * (0-15) Carga Cognitiva Relevante: ¿Toda la información presentada es esencial para medir el constructo, sin "ruido" o información superflua?
+      * (0-15) Claridad del Enunciado y Estímulo: ¿Están libres de ambigüedad para la audiencia objetivo?
+      * (0-15) Carga Cognitiva Relevante: ¿Toda la información presentada es esencial, sin "ruido" o información superflua?
 
   * Equidad y Políticas (0-15 puntos):
 
@@ -38,9 +39,18 @@ Asigna una puntuación basada en los siguientes criterios y luego aplica las reg
 
       * (0-15) Redacción, gramática y estilo impecables y de nivel académico.
 
-### 2. REGLAS DE DECISIÓN PARA is_ready_for_production
+### 2. ANÁLISIS DEL PROCESO (PRINCIPIO DE INTERVENCIÓN MÍNIMA)
 
-Para que `is_ready_for_production` sea `true`, se deben cumplir TODAS las siguientes condiciones. Si una sola falla, debe ser `false`.
+Antes de decidir la puntuación final, analiza el `historial_de_cambios` para responder a esta pregunta: "¿Fue el proceso de refinamiento un pulido necesario o una reconstrucción invasiva?"
+
+  * Revisión Aceptable: El log muestra correcciones de estilo, mejoras en la claridad de las justificaciones o ajustes menores de políticas.
+  * Revisión Invasiva (Señal de Alerta): El log muestra que el núcleo del estímulo o la lógica fundamental de los distractores tuvieron que ser reescritos por completo (ej. múltiples parches con códigos `E201`, `E202`).
+
+Regla de Penalización por Invasividad: Si concluyes que el ítem requirió una "reconstrucción invasiva", debes ser especialmente estricto. Un ítem masivamente reparado tiene un mayor riesgo de contener fallas sutiles. En estos casos, aplica una penalización de al menos 5 puntos en la categoría de `psychometric_content_score` para reflejar este riesgo.
+
+### 3. REGLAS DE DECISIÓN PARA `is_ready_for_production`
+
+Para que `is_ready_for_production` sea `true`, se deben cumplir TODAS las siguientes condiciones, usando las puntuaciones ya ajustadas por el análisis del proceso.
 
 1.  Reglas de Veto (Rechazo Automático):
       * La puntuación en "Alineación con el objetivo" debe ser > 7.
@@ -52,10 +62,9 @@ Para que `is_ready_for_production` sea `true`, se deben cumplir TODAS las siguie
 3.  Umbral Total:
       * `score_total` debe ser >= 85 (de 100).
 
-### 4. JUZGA EL PRODUCTO FINAL, NO EL PROCESO.
+### 4. JUZGA EL PRODUCTO FINAL
 
-Tu evaluación debe basarse exclusivamente en la calidad del **ítem en su estado actual y final**. El historial de revisiones (revision_log) está disponible para tu contexto, pero **NO debes penalizar a un ítem porque haya requerido correcciones** durante el pipeline. Si los errores fueron solucionados y el ítem final cumple con todos los criterios del rubro, debe recibir una puntuación alta acorde a su calidad presente.
-
+Tu evaluación debe basarse exclusivamente en la calidad del ítem en su estado final. El `historial_de_cambios` es una herramienta de diagnóstico para aplicar la Regla de Penalización, pero no debes penalizar a un ítem por el simple hecho de haber sido corregido. Si los errores fueron solucionados y el ítem final es impecable, debe recibir una puntuación alta.
 
 ### 5. FORMATO DE SALIDA OBLIGATORIO
 
@@ -73,7 +82,7 @@ Tu respuesta debe ser únicamente un objeto JSON con la siguiente estructura exa
     "execution_style_score": "integer (0-15)"
   },
   "justification": {
-    "areas_de_mejora": "string (Si el ítem tiene 85 o más de 'score_total', solo incluye 'Listo para usar'. Si es rechazado (menos de 85 de `score_final`), explica las razones con concisión. Sé específico y constructivo. Enmarca siempre tus sugerencias en cómo mejorarían la calidad del ítem como instrumento de medición, por ejemplo: 'aumentaría su poder de discriminación' o 'reduciría la varianza irrelevante al constructo', no solo como una herramienta pedagógica.)"
+    "areas_de_mejora": "string (Explica las razones de forma concisa y constructiva, enfocándote en ofrecer mejoras de calidad del ítem como instrumento de medición, si son importantes."
   }
 }
 ```

@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 import logging
-from dataclasses import dataclass
+import json
+import uuid
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, Tuple
 
 from app.core.config import settings, Settings
 from .utils import make_retry
+
+# Dependencias de los proveedores de LLM
+from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, AuthenticationError
+from google import genai
+from google.genai import types
+from google.api_core.exceptions import ResourceExhausted, InternalServerError, Aborted, DeadlineExceeded, GoogleAPICallError
 
 log = logging.getLogger("app.llm")
 
@@ -15,7 +23,8 @@ class LLMResponse:
     text: str
     model: str
     usage: Dict[str, int]
-    extra: Dict[str, Any]
+    tool_calls: Optional[List[Dict[str, Any]]] = None
+    extra: Dict[str, Any] = field(default_factory=dict)
     success: bool = True
     error_message: Optional[str] = None
 
@@ -46,7 +55,7 @@ class BaseLLMClient:
 
     async def generate_response(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         **kwargs: Any
     ) -> LLMResponse:
         self.logger.debug("→ Generando %d mensajes", len(messages))
@@ -55,18 +64,12 @@ class BaseLLMClient:
         except Exception as e:
             self.logger.error(f"Error durante la llamada LLM para {self.__class__.__name__}: {e}", exc_info=True)
             return LLMResponse(
-                text="",
-                model=kwargs.get("model", "unknown"),
-                usage={},
-                extra={},
-                success=False,
-                error_message=str(e)
+                text="", model=kwargs.get("model", "unknown"),
+                usage={}, success=False, error_message=str(e)
             )
 
     async def _call(self, messages: List[Dict[str, Any]], **kwargs: Any) -> LLMResponse:
         raise NotImplementedError
-
-from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, AuthenticationError
 
 @register_provider("openai")
 class OpenAIClient(BaseLLMClient):
@@ -86,25 +89,32 @@ class OpenAIClient(BaseLLMClient):
             "temperature": kwargs.pop("temperature", self.settings.llm_temperature),
             "max_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
         }
+        if kwargs.get("tools"):
+            params["tools"] = kwargs.get("tools")
         params.update(kwargs)
 
         res = await client.chat.completions.create(**params)
+        choice = res.choices[0]
         usage = getattr(res, "usage", None)
+
+        tool_calls = None
+        if choice.message.tool_calls:
+            tool_calls = [
+                {
+                    "id": tc.id, "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                } for tc in choice.message.tool_calls
+            ]
+
         return LLMResponse(
-            text=res.choices[0].message.content or "",
-            model=res.model or params["model"],
+            text=choice.message.content or "", model=res.model or params["model"],
             usage={
                 "prompt": getattr(usage, "prompt_tokens", 0),
                 "completion": getattr(usage, "completion_tokens", 0),
                 "total": getattr(usage, "total_tokens", 0),
             },
-            extra={"finish_reason": res.choices[0].finish_reason},
-            success=True
+            tool_calls=tool_calls, extra={"finish_reason": choice.finish_reason}, success=True
         )
-
-from google import genai
-from google.genai import types
-from google.api_core.exceptions import ResourceExhausted, InternalServerError, Aborted, DeadlineExceeded, GoogleAPICallError
 
 @register_provider("gemini")
 class GeminiClient(BaseLLMClient):
@@ -117,25 +127,77 @@ class GeminiClient(BaseLLMClient):
         self.client = genai.Client(api_key=settings.google_api_key)
 
     async def _call(self, messages: List[Dict[str, Any]], **kwargs: Any) -> LLMResponse:
-        # Busca el primer mensaje con rol 'system' y lo guarda.
-        system_instruction = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
+        system_instruction = next((msg.get("content") for msg in messages if msg.get("role") == "system"), None)
 
-        # Filtra para obtener solo los mensajes de rol 'user'.
-        user_parts = [types.Part(text=msg["content"]) for msg in messages if msg["role"] == "user"]
-        gemini_contents = [types.UserContent(parts=user_parts)] if user_parts else []
+        gemini_contents = []
+        for msg in messages:
+            role = msg.get("role")
+            if role == "user":
+                gemini_contents.append(types.Content(parts=[types.Part(text=msg.get("content", ""))]))
+            elif role == "tool":
+                gemini_contents.append(types.Content(
+                    parts=[types.Part(function_response=types.FunctionResponse(name=msg.get("name", ""), response={"content": msg.get("content", "")}))]
+                ))
+            elif role == "assistant" and msg.get("tool_calls"):
+                 tool_calls = msg.get("tool_calls", [])
+                 tool_calls_parts = []
+                 for tc in tool_calls:
+                     function_call = tc.get('function', {})
+                     if function_call:
+                         args = json.loads(function_call.get('arguments', '{}'))
+                         tool_calls_parts.append(
+                             types.Part(function_call=types.FunctionCall(name=function_call.get('name'), args=args))
+                         )
+                 if tool_calls_parts:
+                    gemini_contents.append(types.Content(parts=tool_calls_parts, role="model"))
 
         config_params = {
             "temperature": kwargs.pop("temperature", self.settings.llm_temperature),
             "max_output_tokens": kwargs.pop("max_tokens", self.settings.llm_max_tokens),
-            "response_mime_type": "application/json",
             "safety_settings": [
-                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
             ],
-            "system_instruction": system_instruction,
         }
+        if system_instruction:
+            config_params["system_instruction"] = types.Content(parts=[types.Part(text=system_instruction)])
+
+        # --- INICIO DE LA CORRECCIÓN ---
+        # Bloque defensivo para traducir el formato de herramientas genérico al de Gemini.
+        tools = kwargs.get("tools")
+        if tools:
+            gemini_tools = []
+            try:
+                for tool_spec in tools:
+                    if not isinstance(tool_spec, dict): continue
+
+                    if tool_spec.get("type") == "function":
+                        func_data = tool_spec.get("function")
+                        if not isinstance(func_data, dict): continue
+
+                        name = func_data.get("name")
+                        description = func_data.get("description")
+                        parameters = func_data.get("parameters")
+
+                        if name and description and parameters:
+                            func_declaration = types.FunctionDeclaration(
+                                name=name,
+                                description=description,
+                                parameters=parameters
+                            )
+                            gemini_tools.append(types.Tool(function_declarations=[func_declaration]))
+
+                if gemini_tools:
+                    config_params["tools"] = gemini_tools
+            except Exception as e:
+                self.logger.error(f"Error fatal durante la conversión de formato de la herramienta: {e}", exc_info=True)
+                return LLMResponse(
+                    text="", model=kwargs.get("model", "unknown"),
+                    usage={}, success=False, error_message=f"No se pudieron convertir las herramientas para Gemini: {e}"
+                )
+        # --- FIN DE LA CORRECCIÓN ---
 
         generation_config = types.GenerateContentConfig(**config_params)
         model_name = kwargs.pop("model", self.settings.llm_model)
@@ -143,79 +205,76 @@ class GeminiClient(BaseLLMClient):
         res = await self.client.aio.models.generate_content(
             model=model_name,
             contents=gemini_contents,
-            config=generation_config,
+            config=generation_config
         )
 
         self.logger.debug(f"Raw Gemini Response: {res}")
 
         text_content = ""
+        tool_calls = None
         success = True
         error_message = None
 
         try:
-            if not res.candidates:
-                error_message = "LLM no devolvió candidatos."
+            candidate = res.candidates[0]
+            if candidate.content and candidate.content.parts:
+                for part in candidate.content.parts:
+                    if hasattr(part, "text") and part.text:
+                        text_content += part.text
+                    if hasattr(part, "function_call"):
+                        if not tool_calls: tool_calls = []
+                        fc = part.function_call
+                        tool_calls.append({
+                            "id": str(uuid.uuid4()),
+                            "type": "function",
+                            "function": {"name": getattr(fc, 'name', ''), "arguments": json.dumps(dict(getattr(fc, 'args', {})))},
+                        })
+
+            if not text_content and not tool_calls:
+                finish_reason_enum = getattr(candidate, 'finish_reason', None)
+                finish_reason = finish_reason_enum.name if finish_reason_enum else "UNKNOWN"
+
+                if finish_reason == 'SAFETY':
+                     safety_ratings = [str(rating) for rating in getattr(candidate, 'safety_ratings', [])]
+                     error_message = f"LLM response blocked due to safety settings. Ratings: {', '.join(safety_ratings)}"
+                else:
+                     error_message = f"LLM response contained no usable content. Finish Reason: {finish_reason}"
                 success = False
-            else:
-                candidate = res.candidates[0]
-                # Esta parte para extraer el texto es robusta y se mantiene.
-                if candidate.content and candidate.content.parts:
-                    text_content = "".join(part.text for part in candidate.content.parts if hasattr(part, "text"))
-
-                if not text_content:
-                    finish_reason = getattr(candidate, 'finish_reason', 'UNKNOWN')
-                    # Si el modelo fue bloqueado por seguridad, lo indicará aquí.
-                    if finish_reason == 'SAFETY':
-                         safety_ratings = [str(rating) for rating in getattr(candidate, 'safety_ratings', [])]
-                         error_message = f"LLM response blocked due to safety settings. Finish Reason: {finish_reason}. Ratings: {', '.join(safety_ratings)}"
-                    else:
-                         error_message = f"LLM response contained no usable text content. Finish Reason: {finish_reason}"
-                    success = False
-
-        except Exception as e:
+        except (IndexError, AttributeError) as e:
             success = False
-            error_message = f"Error crítico al parsear la respuesta de Gemini: {e}"
-            self.logger.error(error_message, exc_info=True)
+            error_message = f"Error crítico al parsear la respuesta de Gemini (posiblemente vacía o bloqueada): {e}"
+            self.logger.error(f"{error_message} | Raw Response: {res}", exc_info=True)
 
         usage_metadata = getattr(res, 'usage_metadata', None)
         usage = {
-            "prompt": getattr(usage_metadata, 'prompt_token_count', 0),
-            "completion": getattr(usage_metadata, 'candidates_token_count', 0),
-            "total": getattr(usage_metadata, 'total_token_count', 0),
+            "prompt": getattr(usage_metadata, 'prompt_token_count', 0) if usage_metadata else 0,
+            "completion": getattr(usage_metadata, 'candidates_token_count', 0) if usage_metadata else 0,
+            "total": getattr(usage_metadata, 'total_token_count', 0) if usage_metadata else 0,
         }
 
         return LLMResponse(
-            text=text_content,
-            model=model_name,
-            usage=usage,
-            extra={},
-            success=success,
-            error_message=error_message
+            text=text_content, model=model_name, usage=usage,
+            tool_calls=tool_calls, success=success, error_message=error_message
         )
 
-
-# --- Unified API ---
 async def generate_response(
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, Any]],
     model: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     provider: Optional[str] = None,
+    tools: Optional[List[Dict[str, Any]]] = None,
     **kwargs: Any
 ) -> LLMResponse:
     prov = provider or settings.llm_provider
     client = get_provider(prov)
 
-    # Se eliminan los kwargs que ya se manejan para no pasarlos dos veces
     kwargs.pop("model", None)
     kwargs.pop("temperature", None)
     kwargs.pop("max_tokens", None)
     kwargs.pop("provider", None)
 
     return await client.generate_response(
-        messages,
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        **kwargs
+        messages, model=model, temperature=temperature,
+        max_tokens=max_tokens, tools=tools, **kwargs
     )
